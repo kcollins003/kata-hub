@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Kata Hub">
+  <meta name="theme-color" content="#0f0f1a">
+  <link rel="manifest" href="manifest.json">
+  <title>Kata Hub</title>
+  <style>
+    :root {
+      --bg: #0f0f1a;
+      --surface: #1a1a2e;
+      --accent: #e94560;
+      --text: #eaeaea;
+      --text-dim: #888;
+      --success: #4caf50;
+      --border: #2a2a4a;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      max-width: 430px;
+      margin: 0 auto;
+    }
+    .header {
+      background: var(--surface);
+      padding: 16px 20px 12px;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header h1 { font-size: 18px; font-weight: 700; }
+    .header h1 span { color: var(--accent); }
+    .header-sub { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+    .header-progress { margin-top: 10px; }
+    .progress-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim); margin-bottom: 4px; }
+    .progress-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+    .progress-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.3s ease; }
+    .tabs {
+      display: flex;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      position: fixed;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 430px;
+      z-index: 100;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    .tab {
+      flex: 1; display: flex; flex-direction: column; align-items: center;
+      padding: 10px 0 8px; cursor: pointer; color: var(--text-dim);
+      font-size: 11px; gap: 4px; border: none; background: none; transition: color 0.2s;
+    }
+    .tab.active { color: var(--accent); }
+    .tab-icon { font-size: 20px; }
+    .content {
+      padding: 20px 16px;
+      padding-bottom: calc(80px + env(safe-area-inset-bottom));
+    }
+    .view { display: none; }
+    .view.active { display: block; }
+    .card {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+      border: 1px solid var(--border);
+    }
+    .card-title {
+      font-size: 13px; font-weight: 600; color: var(--text-dim);
+      text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 14px;
+    }
+    label { display: block; font-size: 13px; color: var(--text-dim); margin-bottom: 6px; margin-top: 14px; }
+    label:first-child { margin-top: 0; }
+    .optional { font-size: 11px; color: var(--text-dim); font-style: italic; }
+    select, input[type="number"], input[type="date"], textarea {
+      width: 100%; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text); font-size: 16px;
+      padding: 12px 14px; outline: none; -webkit-appearance: none; appearance: none;
+    }
+    select:focus, input:focus, textarea:focus { border-color: var(--accent); }
+    textarea { resize: none; height: 80px; font-family: inherit; }
+    .reps-input { font-size: 36px !important; font-weight: 700 !important; text-align: center; padding: 16px !important; color: var(--accent) !important; }
+    .rpe-container { display: flex; align-items: center; gap: 12px; }
+    input[type="range"] { -webkit-appearance: none; flex: 1; height: 4px; background: var(--border); border-radius: 2px; outline: none; }
+    input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 24px; background: var(--accent); border-radius: 50%; cursor: pointer; }
+    .rpe-value { font-size: 20px; font-weight: 700; color: var(--accent); min-width: 28px; text-align: center; }
+    .pills { display: flex; gap: 8px; flex-wrap: wrap; }
+    .pill {
+      padding: 8px 14px; border-radius: 20px; border: 1px solid var(--border);
+      background: var(--bg); color: var(--text-dim); font-size: 13px; cursor: pointer; transition: all 0.15s;
+    }
+    .pill.selected { border-color: var(--accent); background: var(--accent); color: white; }
+    .btn-primary {
+      width: 100%; padding: 16px; background: var(--accent); color: white;
+      border: none; border-radius: 12px; font-size: 16px; font-weight: 700;
+      cursor: pointer; margin-top: 20px; letter-spacing: 0.5px; transition: opacity 0.2s;
+    }
+    .btn-primary:active { opacity: 0.8; }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+    .toast {
+      position: fixed; top: 80px; left: 50%; transform: translateX(-50%);
+      background: var(--success); color: white; padding: 12px 24px;
+      border-radius: 24px; font-size: 14px; font-weight: 600;
+      z-index: 999; opacity: 0; transition: opacity 0.3s; pointer-events: none; white-space: nowrap;
+    }
+    .toast.error { background: var(--accent); }
+    .toast.show { opacity: 1; }
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+    .stat-box { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; text-align: center; }
+    .stat-value { font-size: 28px; font-weight: 800; color: var(--accent); }
+    .stat-label { font-size: 11px; color: var(--text-dim); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .form-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+    .form-row:last-child { border-bottom: none; }
+    .form-row-status { font-size: 12px; padding: 3px 8px; border-radius: 10px; white-space: nowrap; margin-left: 8px; }
+    .status-complete { background: rgba(76,175,80,0.2); color: #4caf50; }
+    .status-progress { background: rgba(233,69,96,0.2); color: var(--accent); }
+    .status-notstarted { background: var(--border); color: var(--text-dim); }
+    .mini-bar { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+    .mini-bar-track { flex: 1; height: 3px; background: var(--border); border-radius: 2px; }
+    .mini-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; }
+    .loading { text-align: center; color: var(--text-dim); padding: 40px; font-size: 14px; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>⚔️ <span>Kata</span> Training Hub</h1>
+  <div class="header-sub" id="headerSub">Loading...</div>
+  <div class="header-progress">
+    <div class="progress-label">
+      <span id="progressLabel">Overall Progress</span>
+      <span id="progressPct">—</span>
+    </div>
+    <div class="progress-bar">
+      <div class="progress-fill" id="progressFill" style="width:0%"></div>
+    </div>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- LOG KATA -->
+  <div class="view active" id="view-kata">
+    <div class="card">
+      <div class="card-title">Log Kata Reps</div>
+
+      <label>Kata Form</label>
+      <select id="formSelect">
+        <option value="">Loading forms...</option>
+      </select>
+
+      <label>Reps This Set</label>
+      <input type="number" class="reps-input" id="repsInput" placeholder="0" min="1" max="500">
+
+      <label>Date</label>
+      <input type="date" id="kataDate">
+
+      <label>Duration <span class="optional">(optional, minutes)</span></label>
+      <input type="number" id="durationInput" placeholder="e.g. 45" min="1" max="300">
+
+      <label>Perceived Exertion (RPE 1–10)</label>
+      <div class="rpe-container">
+        <input type="range" id="rpeSlider" min="1" max="10" value="5">
+        <div class="rpe-value" id="rpeValue">5</div>
+      </div>
+
+      <label>Recovery Status</label>
+      <div class="pills" id="recoveryPills">
+        <div class="pill selected" data-value="Fresh">Fresh</div>
+        <div class="pill" data-value="Tired">Tired</div>
+        <div class="pill" data-value="Sore">Sore</div>
+        <div class="pill" data-value="Injured">Injured</div>
+      </div>
+
+      <label>Notes <span class="optional">(optional)</span></label>
+      <textarea id="kataNotes" placeholder="Anything worth noting..."></textarea>
+
+      <button class="btn-primary" id="submitKataBtn" onclick="submitKataLog()">Log Reps</button>
+    </div>
+  </div>
+
+  <!-- LOG BODY -->
+  <div class="view" id="view-body">
+    <div class="card">
+      <div class="card-title">Log Body Data</div>
+
+      <label>Date</label>
+      <input type="date" id="bodyDate">
+
+      <label>Weight (lbs)</label>
+      <input type="number" id="weightInput" placeholder="e.g. 248.5" step="0.1" min="100" max="500">
+
+      <label>Body Fat % <span class="optional">(optional)</span></label>
+      <input type="number" id="bodyFatInput" placeholder="e.g. 26.5" step="0.1" min="1" max="60">
+
+      <label>Calories Consumed <span class="optional">(optional)</span></label>
+      <input type="number" id="caloriesInput" placeholder="e.g. 1850" min="0" max="10000">
+
+      <label>Protein (g) <span class="optional">(optional)</span></label>
+      <input type="number" id="proteinInput" placeholder="e.g. 170" min="0" max="500">
+
+      <label>Notes <span class="optional">(optional)</span></label>
+      <textarea id="bodyNotes" placeholder="How are you feeling?"></textarea>
+
+      <button class="btn-primary" onclick="submitBodyLog()">Log Body Data</button>
+    </div>
+  </div>
+
+  <!-- PROGRESS -->
+  <div class="view" id="view-progress">
+    <div id="progressContent"><div class="loading">Loading progress...</div></div>
+  </div>
+
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('kata', this)">
+    <span class="tab-icon">⚔️</span>Log Kata
+  </button>
+  <button class="tab" onclick="switchTab('body', this)">
+    <span class="tab-icon">⚖️</span>Body Log
+  </button>
+  <button class="tab" onclick="switchTab('progress', this)">
+    <span class="tab-icon">📊</span>Progress
+  </button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = 'https://script.google.com/macros/s/AKfycbyusoyyOariGm9uyJhiFnn-PnQYx47KYTe6ru0Mr9UmlS6ksds4JQork4mBomz2eoqF/exec';
+let selectedRecovery = 'Fresh';
+
+window.addEventListener('load', () => {
+  setTodayDates();
+  loadForms();
+  loadSummary();
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+});
+
+function setTodayDates() {
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('kataDate').value = today;
+  document.getElementById('bodyDate').value = today;
+}
+
+async function loadForms() {
+  try {
+    const res = await fetch(`${API}?action=getFormRegistry`);
+    const forms = await res.json();
+    const select = document.getElementById('formSelect');
+    select.innerHTML = '<option value="">Select a form...</option>';
+    forms.forEach(f => {
+      const opt = document.createElement('option');
+      opt.value = f.form_name;
+      opt.textContent = f.form_name + (f.status === 'Complete' ? ' ✓' : '');
+      if (f.status === 'In Progress') opt.selected = true;
+      select.appendChild(opt);
+    });
+  } catch (e) {
+    showToast('Could not load forms', true);
+  }
+}
+
+async function loadSummary() {
+  try {
+    const res = await fetch(`${API}?action=getProgramSummary`);
+    const s = await res.json();
+    updateHeader(s);
+  } catch (e) {
+    document.getElementById('headerSub').textContent = 'Could not load summary';
+  }
+}
+
+function updateHeader(s) {
+  document.getElementById('headerSub').textContent = `${s.current_form} · ${s.current_form_reps}/500 reps`;
+  document.getElementById('progressPct').textContent = s.overall_pct_complete + '%';
+  document.getElementById('progressFill').style.width = s.overall_pct_complete + '%';
+  document.getElementById('progressLabel').textContent = `${s.forms_complete}/${s.forms_total} forms · ${Number(s.total_logged_reps).toLocaleString()} reps`;
+}
+
+function switchTab(name, el) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+  el.classList.add('active');
+  if (name === 'progress') renderProgress();
+}
+
+document.getElementById('rpeSlider').addEventListener('input', function() {
+  document.getElementById('rpeValue').textContent = this.value;
+});
+
+document.querySelectorAll('.pill').forEach(pill => {
+  pill.addEventListener('click', function() {
+    document.querySelectorAll('.pill').forEach(p => p.classList.remove('selected'));
+    this.classList.add('selected');
+    selectedRecovery = this.dataset.value;
+  });
+});
+
+async function submitKataLog() {
+  const formName = document.getElementById('formSelect').value;
+  const reps = document.getElementById('repsInput').value;
+  const date = document.getElementById('kataDate').value;
+  if (!formName) { showToast('Please select a form', true); return; }
+  if (!reps || reps < 1) { showToast('Enter reps (at least 1)', true); return; }
+
+  const btn = document.getElementById('submitKataBtn');
+  btn.disabled = true;
+  btn.textContent = 'Logging...';
+
+  try {
+    const res = await fetch(API, {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'logKata',
+        form_name: formName,
+        reps_this_set: Number(reps),
+        date: date,
+        session_duration_min: document.getElementById('durationInput').value || '',
+        perceived_exertion: document.getElementById('rpeSlider').value,
+        recovery_status: selectedRecovery,
+        notes: document.getElementById('kataNotes').value
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(`✓ ${formName}: ${data.cumulative_reps}/500 reps`);
+      document.getElementById('repsInput').value = '';
+      document.getElementById('kataNotes').value = '';
+      document.getElementById('durationInput').value = '';
+      await loadSummary();
+    } else {
+      showToast(data.error || 'Something went wrong', true);
+    }
+  } catch (e) {
+    showToast('Network error — check connection', true);
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Log Reps';
+}
+
+async function submitBodyLog() {
+  const weight = document.getElementById('weightInput').value;
+  if (!weight) { showToast('Enter your weight', true); return; }
+
+  try {
+    const res = await fetch(API, {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'logBody',
+        date: document.getElementById('bodyDate').value,
+        weight_lbs: Number(weight),
+        body_fat_pct: document.getElementById('bodyFatInput').value || '',
+        calories_consumed: document.getElementById('caloriesInput').value || '',
+        protein_g: document.getElementById('proteinInput').value || '',
+        notes: document.getElementById('bodyNotes').value
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('✓ Body data logged');
+      ['weightInput','bodyFatInput','caloriesInput','proteinInput','bodyNotes'].forEach(id => {
+        document.getElementById(id).value = '';
+      });
+    } else {
+      showToast(data.error || 'Something went wrong', true);
+    }
+  } catch (e) {
+    showToast('Network error — check connection', true);
+  }
+}
+
+async function renderProgress() {
+  const el = document.getElementById('progressContent');
+  el.innerHTML = '<div class="loading">Loading...</div>';
+  try {
+    const res = await fetch(`${API}?action=getProgramSummary`);
+    const s = await res.json();
+    updateHeader(s);
+
+    let html = `
+      <div class="stat-grid">
+        <div class="stat-box"><div class="stat-value">${s.overall_pct_complete}%</div><div class="stat-label">Complete</div></div>
+        <div class="stat-box"><div class="stat-value">${s.forms_complete}/${s.forms_total}</div><div class="stat-label">Forms Done</div></div>
+        <div class="stat-box"><div class="stat-value">${Number(s.total_logged_reps).toLocaleString()}</div><div class="stat-label">Total Reps</div></div>
+        <div class="stat-box"><div class="stat-value">${(s.total_target_reps - s.total_logged_reps).toLocaleString()}</div><div class="stat-label">Remaining</div></div>
+      </div>`;
+
+    if (s.current_form && s.current_form !== 'None') {
+      html += `
+        <div class="card">
+          <div class="card-title">Current Form</div>
+          <div style="font-size:18px;font-weight:700;margin-bottom:12px">${s.current_form}</div>
+          <div class="mini-bar" style="margin-bottom:6px">
+            <div class="mini-bar-track" style="height:8px;border-radius:4px;flex:1">
+              <div class="mini-bar-fill" style="width:${s.current_form_pct}%;height:100%;border-radius:4px"></div>
+            </div>
+          </div>
+          <div style="font-size:13px;color:var(--text-dim)">${s.current_form_reps} / 500 reps · ${s.current_form_pct}%</div>
+        </div>`;
+    }
+
+    html += `<div class="card"><div class="card-title">All Forms</div>`;
+    (s.form_breakdown || []).forEach(f => {
+      const pct = Math.min(100, ((f.logged_reps / f.target_reps) * 100)).toFixed(0);
+      let cls = 'status-notstarted', label = 'Not Started';
+      if (f.status === 'Complete')    { cls = 'status-complete';  label = '✓ Done'; }
+      if (f.status === 'In Progress') { cls = 'status-progress';  label = 'In Progress'; }
+      html += `
+        <div class="form-row">
+          <div style="flex:1;min-width:0">
+            <div class="form-row-name" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${f.order}. ${f.form_name}</div>
+            ${f.status !== 'Not Started' ? `
+              <div class="mini-bar">
+                <div class="mini-bar-track"><div class="mini-bar-fill" style="width:${pct}%"></div></div>
+                <span>${f.logged_reps}</span>
+              </div>` : ''}
+          </div>
+          <span class="form-row-status ${cls}">${label}</span>
+        </div>`;
+    });
+    html += `</div>`;
+    el.innerHTML = html;
+  } catch (e) {
+    el.innerHTML = '<div class="loading">Could not load. Check connection.</div>';
+  }
+}
+
+function showToast(msg, isError = false) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.className = 'toast' + (isError ? ' error' : '') + ' show';
+  setTimeout(() => toast.classList.remove('show'), 3500);
+}
+</script>
+</body>
+</html>
