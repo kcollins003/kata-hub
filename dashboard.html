@@ -302,4 +302,763 @@
     .form-item:last-child { border-bottom: none; }
     .form-item:hover { background: rgba(255,255,255,0.02); margin: 0 -8px; padding-left: 8px; padding-right: 8px; border-radius: 6px; }
 
-    .for
+    .form-num {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      text-align: right;
+    }
+
+    .form-name-cell { font-size: 13px; font-weight: 400; }
+
+    .form-mini-bar {
+      height: 4px;
+      background: var(--surface2);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+
+    .form-mini-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.8s ease;
+    }
+
+    .fill-complete { background: var(--success); }
+    .fill-progress { background: var(--accent); }
+    .fill-none     { background: var(--border); }
+
+    .form-reps {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-mid);
+      text-align: right;
+    }
+
+    .form-status {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 10px;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .s-complete   { background: rgba(76,175,80,0.15);  color: #4caf50; }
+    .s-progress   { background: rgba(233,69,96,0.15);  color: var(--accent); }
+    .s-notstarted { background: var(--surface2); color: var(--text-dim); border: 1px solid var(--border); }
+
+    /* ─── charts ─── */
+    .chart-wrap { position: relative; height: 260px; }
+    .chart-wrap-tall { position: relative; height: 320px; }
+
+    /* ─── body stats ─── */
+    .body-stat-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .body-stat-row:last-child { border-bottom: none; }
+
+    .body-stat-label {
+      font-size: 13px;
+      color: var(--text-mid);
+    }
+
+    .body-stat-value {
+      font-family: var(--font-mono);
+      font-size: 15px;
+      font-weight: 500;
+    }
+
+    .body-stat-value.good  { color: var(--teal); }
+    .body-stat-value.warn  { color: var(--gold); }
+    .body-stat-value.crit  { color: var(--accent); }
+
+    /* ─── section label ─── */
+    .section-label {
+      font-family: var(--font-display);
+      font-size: 20px;
+      letter-spacing: 2px;
+      color: var(--text-dim);
+      margin-bottom: 16px;
+      margin-top: 8px;
+      text-transform: uppercase;
+      border-left: 3px solid var(--accent);
+      padding-left: 12px;
+    }
+
+    /* ─── loading / empty ─── */
+    .loading-state {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100px;
+      color: var(--text-dim);
+      font-size: 13px;
+      font-family: var(--font-mono);
+      gap: 8px;
+    }
+
+    .dot-pulse::after {
+      content: '...';
+      animation: dots 1.2s steps(4, end) infinite;
+    }
+
+    @keyframes dots { 0%,20%{content:''}40%{content:'.'}60%{content:'..'}80%,100%{content:'...'} }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* ─── recovery pills ─── */
+    .recovery-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .rec-pill {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+    }
+
+    .rec-pill-label { color: var(--text-mid); }
+    .rec-pill-count { font-family: var(--font-mono); font-size: 18px; font-weight: 500; }
+
+    .rec-Fresh   { color: var(--teal); }
+    .rec-Tired   { color: var(--gold); }
+    .rec-Sore    { color: var(--accent); }
+    .rec-Injured { color: #ff4040; }
+
+    /* ─── target tracker ─── */
+    .target-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .target-row:last-child { border-bottom: none; }
+    .target-label { color: var(--text-mid); }
+    .target-value { font-family: var(--font-mono); font-size: 14px; }
+    .target-value.on-track  { color: var(--teal); }
+    .target-value.off-track { color: var(--accent); }
+
+    /* ─── scrollable form list ─── */
+    .form-list-scroll {
+      max-height: 460px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+  </style>
+</head>
+<body>
+<div class="shell">
+
+  <header>
+    <div class="logo">⚔️ KATA <span>HUB</span> &mdash; DASHBOARD</div>
+    <div class="header-right">
+      <div class="last-updated" id="lastUpdated">Loading...</div>
+      <button class="refresh-btn" onclick="loadAll()">↻ Refresh</button>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- HERO STATS -->
+    <div class="hero" id="heroStrip">
+      <div class="hero-card">
+        <div class="hero-label">Overall Progress</div>
+        <div class="hero-value" id="h-pct">—<span class="unit">%</span></div>
+        <div class="hero-sub" id="h-pct-sub">—</div>
+      </div>
+      <div class="hero-card">
+        <div class="hero-label">Total Reps Logged</div>
+        <div class="hero-value" id="h-reps">—</div>
+        <div class="hero-sub" id="h-reps-sub">— remaining</div>
+      </div>
+      <div class="hero-card">
+        <div class="hero-label">Forms Complete</div>
+        <div class="hero-value" id="h-forms">—</div>
+        <div class="hero-sub" id="h-forms-sub">— remaining</div>
+      </div>
+      <div class="hero-card gold">
+        <div class="hero-label">Current Form</div>
+        <div style="font-family:var(--font-display);font-size:26px;line-height:1.1;margin-bottom:6px;color:var(--gold)" id="h-form">—</div>
+        <div class="hero-sub" id="h-form-sub">—</div>
+      </div>
+      <div class="hero-card teal">
+        <div class="hero-label">Current Weight</div>
+        <div class="hero-value" id="h-weight">—<span class="unit">lbs</span></div>
+        <div class="hero-sub" id="h-weight-sub">— to target</div>
+      </div>
+    </div>
+
+    <!-- KATA SECTION -->
+    <div class="section-label">Kata Progress</div>
+
+    <!-- Overall bar + current form -->
+    <div class="card" style="margin-bottom:20px">
+      <div class="big-progress">
+        <div class="big-progress-header">
+          <div class="big-progress-title">10,000 KATA PROGRAM</div>
+          <div class="big-progress-pct" id="bigPct">0%</div>
+        </div>
+        <div class="big-bar">
+          <div class="big-bar-fill" id="bigBarFill" style="width:0%"></div>
+        </div>
+        <div class="big-progress-sub">
+          <span id="bigBarLeft">0 reps logged</span>
+          <span id="bigBarRight">10,000 reps total</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-31">
+      <!-- Form list -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">All Forms</div>
+          <div class="card-badge" id="formBadge">0 / 20</div>
+        </div>
+        <div class="form-list-scroll">
+          <div class="form-list" id="formList">
+            <div class="loading-state"><span class="dot-pulse">Loading</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RPE + Recovery -->
+      <div style="display:flex;flex-direction:column;gap:20px">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">RPE Trend</div>
+            <div class="card-badge" id="avgRpe">Avg —</div>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="rpeChart"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Recovery Breakdown</div>
+          </div>
+          <div class="recovery-grid" id="recoveryGrid">
+            <div class="loading-state"><span class="dot-pulse">Loading</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Reps per session chart -->
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header">
+        <div class="card-title">Reps Per Session</div>
+        <div class="card-badge" id="sessionBadge">— sessions</div>
+      </div>
+      <div class="chart-wrap-tall">
+        <canvas id="repsChart"></canvas>
+      </div>
+    </div>
+
+    <!-- BODY SECTION -->
+    <div class="section-label">Body Composition</div>
+
+    <div class="grid-31" style="margin-bottom:20px">
+      <!-- Weight chart -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Weight Trend</div>
+          <div class="card-badge" id="weightBadge">Target: 225 lbs</div>
+        </div>
+        <div class="chart-wrap-tall">
+          <canvas id="weightChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Body stats + targets -->
+      <div style="display:flex;flex-direction:column;gap:20px">
+        <div class="card">
+          <div class="card-header"><div class="card-title">Composition Snapshot</div></div>
+          <div id="bodySnapshot">
+            <div class="loading-state"><span class="dot-pulse">Loading</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Target Tracker</div></div>
+          <div id="targetTracker">
+            <div class="loading-state"><span class="dot-pulse">Loading</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Nutrition chart -->
+    <div class="grid-2" style="margin-bottom:40px">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Daily Calories</div>
+          <div class="card-badge">Ceiling: 1,900 kcal</div>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="caloriesChart"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Daily Protein</div>
+          <div class="card-badge">Target: 160–180g</div>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="proteinChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+const API = 'https://script.google.com/macros/s/AKfycbyusoyyOariGm9uyJhiFnn-PnQYx47KYTe6ru0Mr9UmlS6ksds4JQork4mBomz2eoqF/exec';
+
+const CHART_DEFAULTS = {
+  color: '#6060a0',
+  borderColor: '#1e1e38',
+  font: { family: 'DM Mono, monospace', size: 11 }
+};
+
+Chart.defaults.color = CHART_DEFAULTS.color;
+Chart.defaults.borderColor = CHART_DEFAULTS.borderColor;
+Chart.defaults.font = CHART_DEFAULTS.font;
+
+let charts = {};
+
+async function loadAll() {
+  document.getElementById('lastUpdated').textContent = 'Refreshing...';
+  try {
+    const [summary, kataLog, bodyLog] = await Promise.all([
+      fetch(`${API}?action=getProgramSummary`).then(r => r.json()),
+      fetch(`${API}?action=getKataLog`).then(r => r.json()),
+      fetch(`${API}?action=getBodyLog`).then(r => r.json())
+    ]);
+    renderHero(summary, bodyLog);
+    renderOverallBar(summary);
+    renderFormList(summary);
+    renderRpeChart(kataLog);
+    renderRecovery(kataLog);
+    renderRepsChart(kataLog);
+    renderWeightChart(bodyLog);
+    renderBodySnapshot(bodyLog);
+    renderTargetTracker(bodyLog);
+    renderCaloriesChart(bodyLog);
+    renderProteinChart(bodyLog);
+    document.getElementById('lastUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+  } catch(e) {
+    document.getElementById('lastUpdated').textContent = 'Error loading data';
+    console.error(e);
+  }
+}
+
+// ── Hero ──────────────────────────────────────────────────
+
+function renderHero(s, bodyLog) {
+  document.getElementById('h-pct').innerHTML = s.overall_pct_complete + '<span class="unit">%</span>';
+  document.getElementById('h-pct-sub').textContent = `${s.forms_complete} of ${s.forms_total} forms done`;
+
+  const logged = Number(s.total_logged_reps);
+  const remaining = Number(s.total_target_reps) - logged;
+  document.getElementById('h-reps').textContent = logged.toLocaleString();
+  document.getElementById('h-reps-sub').textContent = remaining.toLocaleString() + ' remaining';
+
+  document.getElementById('h-forms').innerHTML = `${s.forms_complete}<span class="unit">/${s.forms_total}</span>`;
+  document.getElementById('h-forms-sub').textContent = `${s.forms_total - s.forms_complete} forms remaining`;
+
+  document.getElementById('h-form').textContent = s.current_form || '—';
+  document.getElementById('h-form-sub').textContent = `${s.current_form_reps}/500 reps · ${s.current_form_pct}%`;
+
+  const latestBody = getLatestBodyEntry(bodyLog);
+  if (latestBody) {
+    const w = Number(latestBody.weight_lbs);
+    const toTarget = (w - 225).toFixed(1);
+    document.getElementById('h-weight').innerHTML = w + '<span class="unit">lbs</span>';
+    document.getElementById('h-weight-sub').textContent = toTarget > 0 ? `${toTarget} lbs to target` : '🎯 Target reached!';
+  }
+}
+
+// ── Overall bar ───────────────────────────────────────────
+
+function renderOverallBar(s) {
+  const pct = parseFloat(s.overall_pct_complete);
+  document.getElementById('bigPct').textContent = pct + '%';
+  document.getElementById('bigBarFill').style.width = pct + '%';
+  document.getElementById('bigBarLeft').textContent = Number(s.total_logged_reps).toLocaleString() + ' reps logged';
+  document.getElementById('bigBarRight').textContent = Number(s.total_target_reps).toLocaleString() + ' reps total';
+}
+
+// ── Form list ─────────────────────────────────────────────
+
+function renderFormList(s) {
+  const forms = s.form_breakdown || [];
+  document.getElementById('formBadge').textContent = `${s.forms_complete} / ${s.forms_total}`;
+
+  const html = forms.map(f => {
+    const pct = Math.min(100, (f.logged_reps / f.target_reps) * 100).toFixed(0);
+    let statusCls = 's-notstarted', statusLabel = '—';
+    let fillCls = 'fill-none';
+    if (f.status === 'Complete')    { statusCls = 's-complete';   statusLabel = '✓ Done';      fillCls = 'fill-complete'; }
+    if (f.status === 'In Progress') { statusCls = 's-progress';   statusLabel = 'In Progress'; fillCls = 'fill-progress'; }
+    return `
+      <div class="form-item">
+        <div class="form-num">${f.order}</div>
+        <div class="form-name-cell">
+          ${f.form_name}
+          <div class="form-mini-bar">
+            <div class="form-mini-fill ${fillCls}" style="width:${pct}%"></div>
+          </div>
+        </div>
+        <div class="form-reps">${f.logged_reps > 0 ? f.logged_reps + '/500' : '—'}</div>
+        <div class="form-status ${statusCls}">${statusLabel}</div>
+      </div>`;
+  }).join('');
+  document.getElementById('formList').innerHTML = html;
+}
+
+// ── RPE Chart ─────────────────────────────────────────────
+
+function renderRpeChart(log) {
+  const data = log.filter(r => r.perceived_exertion).slice(-30);
+  const labels = data.map(r => formatDateShort(r.date));
+  const values = data.map(r => Number(r.perceived_exertion));
+  const avg = values.length ? (values.reduce((a,b)=>a+b,0)/values.length).toFixed(1) : '—';
+  document.getElementById('avgRpe').textContent = `Avg ${avg}`;
+
+  destroyChart('rpeChart');
+  const ctx = document.getElementById('rpeChart').getContext('2d');
+  charts['rpeChart'] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        borderColor: '#e94560',
+        backgroundColor: 'rgba(233,69,96,0.08)',
+        borderWidth: 2,
+        pointRadius: 3,
+        pointBackgroundColor: '#e94560',
+        tension: 0.3,
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false },
+        annotation: { annotations: {
+          line5: { type: 'line', yMin: 5, yMax: 5, borderColor: 'rgba(96,96,160,0.4)', borderDash: [4,4], borderWidth: 1 }
+        }}
+      },
+      scales: {
+        y: { min: 1, max: 10, ticks: { stepSize: 1 }, grid: { color: '#1e1e38' } },
+        x: { grid: { display: false }, ticks: { maxTicksLimit: 8 } }
+      }
+    }
+  });
+}
+
+// ── Recovery breakdown ────────────────────────────────────
+
+function renderRecovery(log) {
+  const counts = { Fresh: 0, Tired: 0, Sore: 0, Injured: 0 };
+  log.forEach(r => { if (r.recovery_status && counts[r.recovery_status] !== undefined) counts[r.recovery_status]++; });
+
+  const html = Object.entries(counts).map(([k, v]) => `
+    <div class="rec-pill">
+      <span class="rec-pill-label">${k}</span>
+      <span class="rec-pill-count rec-${k}">${v}</span>
+    </div>`).join('');
+  document.getElementById('recoveryGrid').innerHTML = html;
+}
+
+// ── Reps per session ──────────────────────────────────────
+
+function renderRepsChart(log) {
+  document.getElementById('sessionBadge').textContent = log.length + ' sessions';
+  const recent = log.slice(-40);
+  const labels = recent.map(r => formatDateShort(r.date));
+  const values = recent.map(r => Number(r.reps_this_set));
+
+  destroyChart('repsChart');
+  const ctx = document.getElementById('repsChart').getContext('2d');
+  charts['repsChart'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: recent.map(r => r.recovery_status === 'Fresh' ? 'rgba(0,201,167,0.7)' :
+          r.recovery_status === 'Tired' ? 'rgba(240,165,0,0.7)' :
+          r.recovery_status === 'Sore'  ? 'rgba(233,69,96,0.7)' : 'rgba(255,64,64,0.7)'),
+        borderRadius: 4,
+        borderSkipped: false
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: {
+        callbacks: { title: (items) => labels[items[0].dataIndex],
+          label: (item) => ` ${item.raw} reps · ${recent[item.dataIndex].form_name}` }
+      }},
+      scales: {
+        y: { grid: { color: '#1e1e38' }, ticks: { stepSize: 10 } },
+        x: { grid: { display: false }, ticks: { maxTicksLimit: 12 } }
+      }
+    }
+  });
+}
+
+// ── Weight chart ──────────────────────────────────────────
+
+function renderWeightChart(log) {
+  const data = log.filter(r => r.weight_lbs).sort((a,b) => new Date(a.date)-new Date(b.date));
+  const labels = data.map(r => formatDateShort(r.date));
+  const values = data.map(r => Number(r.weight_lbs));
+
+  destroyChart('weightChart');
+  const ctx = document.getElementById('weightChart').getContext('2d');
+  charts['weightChart'] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Weight',
+        data: values,
+        borderColor: '#00c9a7',
+        backgroundColor: 'rgba(0,201,167,0.06)',
+        borderWidth: 2.5,
+        pointRadius: 4,
+        pointBackgroundColor: '#00c9a7',
+        tension: 0.3,
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        annotation: { annotations: {
+          target: {
+            type: 'line', yMin: 225, yMax: 225,
+            borderColor: 'rgba(240,165,0,0.8)',
+            borderDash: [6,3], borderWidth: 1.5,
+            label: { display: true, content: 'Target 225', position: 'end',
+              color: '#f0a500', backgroundColor: 'transparent', font: { size: 11 } }
+          },
+          start300: {
+            type: 'line', yMin: 300, yMax: 300,
+            borderColor: 'rgba(96,96,160,0.3)', borderDash: [4,4], borderWidth: 1,
+            label: { display: true, content: 'Start 300', position: 'end',
+              color: '#6060a0', backgroundColor: 'transparent', font: { size: 10 } }
+          }
+        }}
+      },
+      scales: {
+        y: { grid: { color: '#1e1e38' }, ticks: { callback: v => v + ' lbs' } },
+        x: { grid: { display: false }, ticks: { maxTicksLimit: 8 } }
+      }
+    }
+  });
+
+  const badge = document.getElementById('weightBadge');
+  if (values.length >= 2) {
+    const delta = (values[values.length-1] - values[0]).toFixed(1);
+    badge.textContent = `${delta > 0 ? '+' : ''}${delta} lbs total`;
+  }
+}
+
+// ── Body snapshot ─────────────────────────────────────────
+
+function renderBodySnapshot(log) {
+  const latest = getLatestBodyEntry(log);
+  if (!latest) { document.getElementById('bodySnapshot').innerHTML = '<div class="loading-state">No body data yet</div>'; return; }
+
+  const w = Number(latest.weight_lbs);
+  const toGo = (w - 225).toFixed(1);
+  const fromStart = (300 - w).toFixed(1);
+  const bf = latest.body_fat_pct ? Number(latest.body_fat_pct).toFixed(1) + '%' : '—';
+
+  document.getElementById('bodySnapshot').innerHTML = `
+    <div class="body-stat-row">
+      <span class="body-stat-label">Current Weight</span>
+      <span class="body-stat-value good">${w} lbs</span>
+    </div>
+    <div class="body-stat-row">
+      <span class="body-stat-label">Lost Since Start</span>
+      <span class="body-stat-value good">↓ ${fromStart} lbs</span>
+    </div>
+    <div class="body-stat-row">
+      <span class="body-stat-label">To Target (225)</span>
+      <span class="body-stat-value ${toGo > 10 ? 'warn' : 'good'}">${toGo} lbs to go</span>
+    </div>
+    <div class="body-stat-row">
+      <span class="body-stat-label">Body Fat</span>
+      <span class="body-stat-value">${bf}</span>
+    </div>
+    <div class="body-stat-row">
+      <span class="body-stat-label">Last Logged</span>
+      <span class="body-stat-value" style="color:var(--text-mid)">${formatDateShort(latest.date)}</span>
+    </div>`;
+}
+
+// ── Target tracker ────────────────────────────────────────
+
+function renderTargetTracker(log) {
+  const withWeight = log.filter(r => r.weight_lbs).sort((a,b) => new Date(a.date)-new Date(b.date));
+  if (withWeight.length < 2) {
+    document.getElementById('targetTracker').innerHTML = '<div class="loading-state">Need more data</div>';
+    return;
+  }
+
+  const first = withWeight[0];
+  const latest = withWeight[withWeight.length - 1];
+  const daysDiff = Math.max(1, (new Date(latest.date) - new Date(first.date)) / 86400000);
+  const lbsLost = Number(first.weight_lbs) - Number(latest.weight_lbs);
+  const ratePerWeek = ((lbsLost / daysDiff) * 7).toFixed(2);
+  const remaining = Number(latest.weight_lbs) - 225;
+  const weeksToTarget = remaining > 0 && ratePerWeek > 0
+    ? Math.ceil(remaining / ratePerWeek) + ' weeks'
+    : remaining <= 0 ? '🎯 Done' : 'Gaining weight';
+
+  const latestWithCal = [...log].filter(r => r.calories_consumed).reverse()[0];
+  const latestWithPro  = [...log].filter(r => r.protein_g).reverse()[0];
+
+  document.getElementById('targetTracker').innerHTML = `
+    <div class="target-row">
+      <span class="target-label">Avg weekly loss</span>
+      <span class="target-value ${ratePerWeek > 0 ? 'on-track' : 'off-track'}">${ratePerWeek} lbs/wk</span>
+    </div>
+    <div class="target-row">
+      <span class="target-label">Est. weeks to 225</span>
+      <span class="target-value on-track">${weeksToTarget}</span>
+    </div>
+    <div class="target-row">
+      <span class="target-label">Last calories</span>
+      <span class="target-value ${latestWithCal && Number(latestWithCal.calories_consumed) <= 1900 ? 'on-track' : 'off-track'}">${latestWithCal ? Number(latestWithCal.calories_consumed).toLocaleString() + ' kcal' : '—'}</span>
+    </div>
+    <div class="target-row">
+      <span class="target-label">Last protein</span>
+      <span class="target-value ${latestWithPro && Number(latestWithPro.protein_g) >= 160 ? 'on-track' : 'off-track'}">${latestWithPro ? latestWithPro.protein_g + 'g' : '—'}</span>
+    </div>`;
+}
+
+// ── Calories chart ────────────────────────────────────────
+
+function renderCaloriesChart(log) {
+  const data = log.filter(r => r.calories_consumed).sort((a,b) => new Date(a.date)-new Date(b.date)).slice(-30);
+  const labels = data.map(r => formatDateShort(r.date));
+  const values = data.map(r => Number(r.calories_consumed));
+
+  destroyChart('caloriesChart');
+  const ctx = document.getElementById('caloriesChart').getContext('2d');
+  charts['caloriesChart'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: values.map(v => v <= 1900 ? 'rgba(0,201,167,0.7)' : 'rgba(233,69,96,0.7)'),
+        borderRadius: 4,
+        borderSkipped: false
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false },
+        annotation: { annotations: {
+          ceiling: { type: 'line', yMin: 1900, yMax: 1900,
+            borderColor: 'rgba(233,69,96,0.6)', borderDash: [5,3], borderWidth: 1.5,
+            label: { display: true, content: '1,900 ceiling', position: 'end',
+              color: '#e94560', backgroundColor: 'transparent', font: { size: 10 } }
+          }
+        }}
+      },
+      scales: {
+        y: { grid: { color: '#1e1e38' }, ticks: { callback: v => v.toLocaleString() } },
+        x: { grid: { display: false }, ticks: { maxTicksLimit: 10 } }
+      }
+    }
+  });
+}
+
+// ── Protein chart ─────────────────────────────────────────
+
+function renderProteinChart(log) {
+  const data = log.filter(r => r.protein_g).sort((a,b) => new Date(a.date)-new Date(b.date)).slice(-30);
+  const labels = data.map(r => formatDateShort(r.date));
+  const values = data.map(r => Number(r.protein_g));
+
+  destroyChart('proteinChart');
+  const ctx = document.getElementById('proteinChart').getContext('2d');
+  charts['proteinChart'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: values.map(v => v >= 160 ? 'rgba(240,165,0,0.7)' : 'rgba(96,96,160,0.5)'),
+        borderRadius: 4,
+        borderSkipped: false
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false },
+        annotation: { annotations: {
+          low:  { type: 'line', yMin: 160, yMax: 160, borderColor: 'rgba(240,165,0,0.6)', borderDash: [5,3], borderWidth: 1.5,
+            label: { display: true, content: '160g min', position: 'end', color: '#f0a500', backgroundColor: 'transparent', font: { size: 10 } }
+          },
+          high: { type: 'line', yMin: 180, yMax: 180, borderColor: 'rgba(240,165,0,0.3)', borderDash: [5,3], borderWidth: 1,
+            label: { display: true, content: '180g target', position: 'end', color: '#f0a500', backgroundColor: 'transparent', font: { size: 10 } }
+          }
+        }}
+      },
+      scales: {
+        y: { grid: { color: '#1e1e38' }, ticks: { callback: v => v + 'g' } },
+        x: { grid: { display: false }, ticks: { maxTicksLimit: 10 } }
+      }
+    }
+  });
+}
+
+// ── Utils ─────────────────────────────────────────────────
+
+function getLatestBodyEntry(log) {
+  const withWeight = log.filter(r => r.weight_lbs);
+  if (!withWeight.length) return null;
+  return withWeight.sort((a,b) => new Date(b.date) - new Date(a.date))[0];
+}
+
+function formatDateShort(dateStr) {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  if (isNaN(d)) return dateStr;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function destroyChart(id) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+
+// ── Init ──────────────────────────────────────────────────
+loadAll();
+</script>
+</body>
+</html>
