@@ -1,0 +1,10 @@
+{
+  "name": "Kata Training Hub",
+  "short_name": "Kata Hub",
+  "description": "10,000 kata training tracker",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0f0f1a",
+  "theme_color": "#0f0f1a",
+  "orientation": "portrait"
+}
