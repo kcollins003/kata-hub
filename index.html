@@ -229,8 +229,7 @@ const API = 'https://script.google.com/macros/s/AKfycbyS4lQ_TJzDv_Q9FOa9tpzIHbL2
 
 window.addEventListener('load', () => {
   setTodayDates();
-  loadForms();
-  loadSummary();
+  init();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 });
 
@@ -240,22 +239,30 @@ function setTodayDates() {
   document.getElementById('bodyDate').value = today;
 }
 
-async function loadForms() {
+async function init() {
   try {
-    const res = await fetch(`${API}?action=getFormRegistry`);
-    const forms = await res.json();
-    const select = document.getElementById('formSelect');
-    select.innerHTML = '<option value="">Select a form...</option>';
-    forms.forEach(f => {
-      const opt = document.createElement('option');
-      opt.value = f.form_name;
-      opt.textContent = f.form_name + (f.status === 'Complete' ? ' ✓' : '');
-      if (f.status === 'In Progress') opt.selected = true;
-      select.appendChild(opt);
-    });
+    const [forms, summary] = await Promise.all([
+      fetch(`${API}?action=getFormRegistry`).then(r => r.json()),
+      fetch(`${API}?action=getProgramSummary`).then(r => r.json())
+    ]);
+    populateForms(forms, summary.current_form);
+    updateHeader(summary);
   } catch (e) {
-    showToast('Could not load forms', true);
+    showToast('Could not load data', true);
+    document.getElementById('headerSub').textContent = 'Could not load summary';
   }
+}
+
+function populateForms(forms, currentForm) {
+  const select = document.getElementById('formSelect');
+  select.innerHTML = '<option value="">Select a form...</option>';
+  forms.forEach(f => {
+    const opt = document.createElement('option');
+    opt.value = f.form_name;
+    opt.textContent = f.form_name + (f.status === 'Complete' ? ' ✓' : '');
+    if (f.form_name === currentForm) opt.selected = true;
+    select.appendChild(opt);
+  });
 }
 
 async function loadSummary() {
@@ -263,13 +270,15 @@ async function loadSummary() {
     const res = await fetch(`${API}?action=getProgramSummary`);
     const s = await res.json();
     updateHeader(s);
+    return s;
   } catch (e) {
     document.getElementById('headerSub').textContent = 'Could not load summary';
   }
 }
 
 function updateHeader(s) {
-  document.getElementById('headerSub').textContent = `${s.current_form} · ${s.current_form_reps}/500 reps`;
+  const target = s.current_form_target || 500;
+  document.getElementById('headerSub').textContent = `${s.current_form} · ${s.current_form_reps}/${target} reps`;
   document.getElementById('progressPct').textContent = s.overall_pct_complete + '%';
   document.getElementById('progressFill').style.width = s.overall_pct_complete + '%';
   document.getElementById('progressLabel').textContent = `${s.forms_complete}/${s.forms_total} forms · ${Number(s.total_logged_reps).toLocaleString()} reps`;
@@ -367,6 +376,7 @@ async function renderProgress() {
     const res = await fetch(`${API}?action=getProgramSummary`);
     const s = await res.json();
     updateHeader(s);
+    const curTarget = s.current_form_target || 500;
 
     let html = `
       <div class="stat-grid">
@@ -386,7 +396,7 @@ async function renderProgress() {
               <div class="mini-bar-fill" style="width:${s.current_form_pct}%;height:100%;border-radius:4px"></div>
             </div>
           </div>
-          <div style="font-size:13px;color:var(--text-dim)">${s.current_form_reps} / 500 reps · ${s.current_form_pct}%</div>
+          <div style="font-size:13px;color:var(--text-dim)">${s.current_form_reps} / ${curTarget} reps · ${s.current_form_pct}%</div>
         </div>`;
     }
 
@@ -400,7 +410,7 @@ async function renderProgress() {
         <div class="form-row">
           <div style="flex:1;min-width:0">
             <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${f.order}. ${f.form_name}</div>
-            ${f.status !== 'Not Started' ? `
+            ${f.logged_reps > 0 ? `
               <div class="mini-bar">
                 <div class="mini-bar-track"><div class="mini-bar-fill" style="width:${pct}%"></div></div>
                 <span>${f.logged_reps}</span>
