@@ -14,6 +14,7 @@
       --bg: #0f0f1a;
       --surface: #1a1a2e;
       --accent: #e94560;
+      --gold: #f0a500;
       --text: #eaeaea;
       --text-dim: #888;
       --success: #4caf50;
@@ -119,10 +120,13 @@
     .form-row-status { font-size: 12px; padding: 3px 8px; border-radius: 10px; white-space: nowrap; margin-left: 8px; }
     .status-complete { background: rgba(76,175,80,0.2); color: #4caf50; }
     .status-progress { background: rgba(233,69,96,0.2); color: var(--accent); }
+    .status-paused { background: rgba(240,165,0,0.2); color: var(--gold); }
     .status-notstarted { background: var(--border); color: var(--text-dim); }
     .mini-bar { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-dim); margin-top: 4px; }
-    .mini-bar-track { flex: 1; height: 3px; background: var(--border); border-radius: 2px; }
+    .mini-bar-track { flex: 1; height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
     .mini-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; }
+    .mini-bar-fill.paused { background: var(--gold); opacity: 0.75; }
+    .mini-bar-fill.complete { background: var(--success); }
     .loading { text-align: center; color: var(--text-dim); padding: 40px; font-size: 14px; }
   </style>
 </head>
@@ -259,7 +263,10 @@ function populateForms(forms, currentForm) {
   forms.forEach(f => {
     const opt = document.createElement('option');
     opt.value = f.form_name;
-    opt.textContent = f.form_name + (f.status === 'Complete' ? ' ✓' : '');
+    let suffix = '';
+    if (f.status === 'Complete') suffix = ' ✓';
+    if (f.status === 'Paused')   suffix = ' ⏸';
+    opt.textContent = f.form_name + suffix;
     if (f.form_name === currentForm) opt.selected = true;
     select.appendChild(opt);
   });
@@ -403,16 +410,17 @@ async function renderProgress() {
     html += `<div class="card"><div class="card-title">All Forms</div>`;
     (s.form_breakdown || []).forEach(f => {
       const pct = Math.min(100, ((f.logged_reps / f.target_reps) * 100)).toFixed(0);
-      let cls = 'status-notstarted', label = '—';
-      if (f.status === 'Complete')    { cls = 'status-complete';  label = '✓ Done'; }
-      if (f.status === 'In Progress') { cls = 'status-progress';  label = 'In Progress'; }
+      let cls = 'status-notstarted', label = '—', fillCls = '';
+      if (f.status === 'Complete')    { cls = 'status-complete'; label = '✓ Done';      fillCls = 'complete'; }
+      if (f.status === 'In Progress') { cls = 'status-progress'; label = 'In Progress'; }
+      if (f.status === 'Paused')      { cls = 'status-paused';   label = '⏸ Paused';    fillCls = 'paused'; }
       html += `
         <div class="form-row">
           <div style="flex:1;min-width:0">
             <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${f.order}. ${f.form_name}</div>
             ${f.logged_reps > 0 ? `
               <div class="mini-bar">
-                <div class="mini-bar-track"><div class="mini-bar-fill" style="width:${pct}%"></div></div>
+                <div class="mini-bar-track"><div class="mini-bar-fill ${fillCls}" style="width:${pct}%"></div></div>
                 <span>${f.logged_reps}</span>
               </div>` : ''}
           </div>
