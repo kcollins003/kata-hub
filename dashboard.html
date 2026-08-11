@@ -132,7 +132,7 @@
     .form-list { display: flex; flex-direction: column; }
     .form-item {
       display: grid;
-      grid-template-columns: 28px 1fr 80px 70px;
+      grid-template-columns: 28px 1fr 80px 84px;
       align-items: center;
       gap: 12px;
       padding: 10px 0;
@@ -146,11 +146,13 @@
     .form-mini-fill { height: 100%; border-radius: 2px; transition: width 0.8s ease; }
     .fill-complete { background: var(--success); }
     .fill-progress { background: var(--accent); }
+    .fill-paused   { background: var(--gold); opacity: 0.75; }
     .fill-none     { background: var(--border); }
     .form-reps { font-family: var(--font-mono); font-size: 12px; color: var(--text-mid); text-align: right; }
     .form-status { font-size: 11px; padding: 3px 8px; border-radius: 10px; text-align: center; white-space: nowrap; }
     .s-complete   { background: rgba(76,175,80,0.15);  color: #4caf50; }
     .s-progress   { background: rgba(233,69,96,0.15);  color: var(--accent); }
+    .s-paused     { background: rgba(240,165,0,0.15);  color: var(--gold); }
     .s-notstarted { background: var(--surface2); color: var(--text-dim); border: 1px solid var(--border); }
     .chart-wrap { position: relative; height: 260px; }
     .chart-wrap-tall { position: relative; height: 320px; }
@@ -359,7 +361,8 @@ function renderHero(s, bodyLog) {
   document.getElementById('h-forms').innerHTML = `${s.forms_complete}<span class="unit">/${s.forms_total}</span>`;
   document.getElementById('h-forms-sub').textContent = `${s.forms_total - s.forms_complete} forms remaining`;
   document.getElementById('h-form').textContent = s.current_form || '—';
-  document.getElementById('h-form-sub').textContent = `${s.current_form_reps}/500 reps · ${s.current_form_pct}%`;
+  const curTarget = s.current_form_target || 500;
+  document.getElementById('h-form-sub').textContent = `${s.current_form_reps}/${curTarget} reps · ${s.current_form_pct}%`;
   const latestBody = getLatestBodyEntry(bodyLog);
   if (latestBody) {
     const w = Number(latestBody.weight_lbs);
@@ -383,8 +386,9 @@ function renderFormList(s) {
   const html = forms.map(f => {
     const pct = Math.min(100, (f.logged_reps / f.target_reps) * 100).toFixed(0);
     let statusCls = 's-notstarted', statusLabel = '—', fillCls = 'fill-none';
-    if (f.status === 'Complete')    { statusCls = 's-complete';   statusLabel = '✓ Done';      fillCls = 'fill-complete'; }
-    if (f.status === 'In Progress') { statusCls = 's-progress';   statusLabel = 'In Progress'; fillCls = 'fill-progress'; }
+    if (f.status === 'Complete')    { statusCls = 's-complete'; statusLabel = '✓ Done';      fillCls = 'fill-complete'; }
+    if (f.status === 'In Progress') { statusCls = 's-progress'; statusLabel = 'In Progress'; fillCls = 'fill-progress'; }
+    if (f.status === 'Paused')      { statusCls = 's-paused';   statusLabel = '⏸ Paused';    fillCls = 'fill-paused'; }
     return `
       <div class="form-item">
         <div class="form-num">${f.order}</div>
@@ -392,7 +396,7 @@ function renderFormList(s) {
           ${f.form_name}
           <div class="form-mini-bar"><div class="form-mini-fill ${fillCls}" style="width:${pct}%"></div></div>
         </div>
-        <div class="form-reps">${f.logged_reps > 0 ? f.logged_reps + '/500' : '—'}</div>
+        <div class="form-reps">${f.logged_reps > 0 ? f.logged_reps + '/' + f.target_reps : '—'}</div>
         <div class="form-status ${statusCls}">${statusLabel}</div>
       </div>`;
   }).join('');
