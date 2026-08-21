@@ -237,8 +237,17 @@ window.addEventListener('load', () => {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 });
 
+// Local calendar date — NOT UTC. Prevents evening entries
+// from pre-filling with tomorrow's date.
+function localDateString() {
+  const d = new Date();
+  return d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0');
+}
+
 function setTodayDates() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = localDateString();
   document.getElementById('kataDate').value = today;
   document.getElementById('bodyDate').value = today;
 }
@@ -329,7 +338,7 @@ async function submitKataLog() {
     });
     const data = await res.json();
     if (data.success) {
-      showToast(`✓ ${formName}: ${data.cumulative_reps}/500 reps`);
+      showToast(`✓ ${formName}: ${data.cumulative_reps} reps total`);
       document.getElementById('repsInput').value = '';
       document.getElementById('kataNotes').value = '';
       document.getElementById('durationInput').value = '';
