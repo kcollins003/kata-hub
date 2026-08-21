@@ -189,7 +189,6 @@
 
   <main>
 
-    <!-- HERO -->
     <div class="hero">
       <div class="hero-card">
         <div class="hero-label">Overall Progress</div>
@@ -218,7 +217,6 @@
       </div>
     </div>
 
-    <!-- KATA -->
     <div class="section-label">Kata Progress</div>
 
     <div class="card" style="margin-bottom:20px">
@@ -271,7 +269,6 @@
       </div>
     </div>
 
-    <!-- BODY -->
     <div class="section-label">Body Composition</div>
 
     <div class="grid-31" style="margin-bottom:20px">
@@ -325,6 +322,35 @@ Chart.defaults.borderColor = '#1e1e38';
 Chart.defaults.font = { family: 'DM Mono, monospace', size: 11 };
 
 let charts = {};
+
+// ── Date handling ────────────────────────────────────────────
+// "2026-08-10" parsed by new Date() is treated as UTC midnight,
+// which renders as Aug 9 in Pacific. Parse date-only strings as
+// local instead. Full timestamps keep normal parsing.
+function parseLogDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  const str = String(value).trim();
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str);
+  if (dateOnly) {
+    return new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]));
+  }
+  const d = new Date(str);
+  return isNaN(d) ? null : d;
+}
+
+function formatDateShort(value) {
+  const d = parseLogDate(value);
+  if (!d) return '—';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function dateSort(a, b) {
+  const da = parseLogDate(a.date), db = parseLogDate(b.date);
+  return (da ? da.getTime() : 0) - (db ? db.getTime() : 0);
+}
+
+// ── Load ─────────────────────────────────────────────────────
 
 async function loadAll() {
   document.getElementById('lastUpdated').textContent = 'Refreshing...';
@@ -441,7 +467,7 @@ function renderRepsChart(log) {
 }
 
 function renderWeightChart(log) {
-  const data = log.filter(r => r.weight_lbs).sort((a,b) => new Date(a.date)-new Date(b.date));
+  const data = log.filter(r => r.weight_lbs).sort(dateSort);
   const labels = data.map(r => formatDateShort(r.date));
   const values = data.map(r => Number(r.weight_lbs));
   destroyChart('weightChart');
@@ -485,17 +511,17 @@ function renderBodySnapshot(log) {
 }
 
 function renderTargetTracker(log) {
-  const withWeight = log.filter(r => r.weight_lbs).sort((a,b) => new Date(a.date)-new Date(b.date));
+  const withWeight = log.filter(r => r.weight_lbs).sort(dateSort);
   if (withWeight.length < 2) { document.getElementById('targetTracker').innerHTML = '<div class="loading-state">Need more data</div>'; return; }
   const first = withWeight[0];
   const latest = withWeight[withWeight.length - 1];
-  const daysDiff = Math.max(1, (new Date(latest.date) - new Date(first.date)) / 86400000);
+  const daysDiff = Math.max(1, (parseLogDate(latest.date) - parseLogDate(first.date)) / 86400000);
   const lbsLost = Number(first.weight_lbs) - Number(latest.weight_lbs);
   const ratePerWeek = ((lbsLost / daysDiff) * 7).toFixed(2);
   const remaining = Number(latest.weight_lbs) - 225;
   const weeksToTarget = remaining > 0 && ratePerWeek > 0 ? Math.ceil(remaining / ratePerWeek) + ' weeks' : remaining <= 0 ? '🎯 Done' : 'Gaining weight';
-  const latestWithCal = [...log].filter(r => r.calories_consumed).reverse()[0];
-  const latestWithPro  = [...log].filter(r => r.protein_g).reverse()[0];
+  const latestWithCal = log.filter(r => r.calories_consumed).sort(dateSort).reverse()[0];
+  const latestWithPro = log.filter(r => r.protein_g).sort(dateSort).reverse()[0];
   document.getElementById('targetTracker').innerHTML = `
     <div class="target-row"><span class="target-label">Avg weekly loss</span><span class="target-value ${ratePerWeek > 0 ? 'on-track' : 'off-track'}">${ratePerWeek} lbs/wk</span></div>
     <div class="target-row"><span class="target-label">Est. weeks to 225</span><span class="target-value on-track">${weeksToTarget}</span></div>
@@ -504,7 +530,7 @@ function renderTargetTracker(log) {
 }
 
 function renderCaloriesChart(log) {
-  const data = log.filter(r => r.calories_consumed).sort((a,b) => new Date(a.date)-new Date(b.date)).slice(-30);
+  const data = log.filter(r => r.calories_consumed).sort(dateSort).slice(-30);
   const labels = data.map(r => formatDateShort(r.date));
   const values = data.map(r => Number(r.calories_consumed));
   destroyChart('caloriesChart');
@@ -524,7 +550,7 @@ function renderCaloriesChart(log) {
 }
 
 function renderProteinChart(log) {
-  const data = log.filter(r => r.protein_g).sort((a,b) => new Date(a.date)-new Date(b.date)).slice(-30);
+  const data = log.filter(r => r.protein_g).sort(dateSort).slice(-30);
   const labels = data.map(r => formatDateShort(r.date));
   const values = data.map(r => Number(r.protein_g));
   destroyChart('proteinChart');
@@ -550,14 +576,7 @@ function renderProteinChart(log) {
 function getLatestBodyEntry(log) {
   const withWeight = log.filter(r => r.weight_lbs);
   if (!withWeight.length) return null;
-  return withWeight.sort((a,b) => new Date(b.date) - new Date(a.date))[0];
-}
-
-function formatDateShort(dateStr) {
-  if (!dateStr) return '—';
-  const d = new Date(dateStr);
-  if (isNaN(d)) return dateStr;
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return withWeight.sort(dateSort).reverse()[0];
 }
 
 function destroyChart(id) {
