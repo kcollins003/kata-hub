@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kata Warrior — The Count</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --black:#0a0908;
+    --panel:#121110;
+    --line:#26221f;
+    --bone:#f2ede5;
+    --dim:#7a726a;
+    --blood:#a8322c;
+    --cinzel:'Cinzel',Georgia,serif;
+    --label:-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;
+  }
+  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+  body{
+    background:var(--black);
+    color:var(--bone);
+    font-family:var(--label);
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  body::after{
+    content:'';position:fixed;inset:0;pointer-events:none;z-index:2;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.035'/%3E%3C/svg%3E");
+  }
+  .wrap{max-width:520px;margin:0 auto;padding:0 22px 64px;position:relative;z-index:1}
+
+  /* masthead */
+  .mast{padding:38px 0 30px;text-align:center;border-bottom:1px solid var(--line)}
+  .mast h1{
+    font-family:var(--cinzel);font-weight:900;font-size:26px;
+    letter-spacing:.22em;text-indent:.22em;line-height:1;
+  }
+  .mast .rule{width:34px;height:2px;background:var(--blood);margin:16px auto 0}
+
+  /* ── YOUR WORDS GO HERE ──────────────────────────────
+     One line for someone landing from TikTok.
+     Delete this block entirely if you'd rather it stay bare. */
+  .intro{
+    padding:24px 0 0;text-align:center;font-size:14px;line-height:1.65;
+    color:var(--dim);max-width:340px;margin:0 auto;
+  }
+  /* ─────────────────────────────────────────────────── */
+
+  /* the count */
+  .count{padding:46px 0 34px;text-align:center}
+  .count .n{
+    font-family:var(--cinzel);font-weight:900;
+    font-size:clamp(66px,21vw,104px);line-height:.9;
+    letter-spacing:-.01em;font-variant-numeric:tabular-nums;
+  }
+  .count .of{
+    font-family:var(--cinzel);font-weight:400;font-size:15px;
+    letter-spacing:.3em;text-indent:.3em;color:var(--dim);margin-top:16px;
+  }
+
+  .bar{height:3px;background:var(--line);overflow:hidden}
+  .bar span{display:block;height:100%;width:0;background:var(--blood);transition:width 1.4s cubic-bezier(.2,.8,.2,1)}
+  .barfoot{
+    display:flex;justify-content:space-between;margin-top:11px;
+    font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);
+  }
+
+  /* stat pair */
+  .pair{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);margin-top:34px;border:1px solid var(--line)}
+  .cell{background:var(--panel);padding:20px 16px;text-align:center}
+  .cell .k{font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);margin-bottom:9px}
+  .cell .v{font-family:var(--cinzel);font-weight:600;font-size:15px;line-height:1.25;font-variant-numeric:tabular-nums}
+  .cell .v.big{font-size:26px}
+
+  /* forms */
+  .head{
+    margin:44px 0 4px;font-size:10px;letter-spacing:.2em;
+    text-transform:uppercase;color:var(--dim);
+    display:flex;justify-content:space-between;align-items:baseline;
+    padding-bottom:11px;border-bottom:1px solid var(--line);
+  }
+  .row{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--line)}
+  .idx{
+    font-family:var(--cinzel);font-size:10.5px;color:var(--dim);
+    width:19px;flex-shrink:0;font-variant-numeric:tabular-nums;
+  }
+  .nm{flex:1;min-width:0}
+  .nm b{font-family:var(--cinzel);font-weight:400;font-size:14.5px;display:block}
+  .nm .track{height:2px;background:var(--line);margin-top:7px;overflow:hidden}
+  .nm .track i{display:block;height:100%;width:0;background:var(--dim);transition:width 1s ease}
+  .nm .track i.on{background:var(--blood)}
+  .nm .track i.done{background:#4a6b3f}
+  .amt{
+    font-family:var(--cinzel);font-size:11.5px;color:var(--dim);
+    text-align:right;flex-shrink:0;font-variant-numeric:tabular-nums;min-width:52px;
+  }
+  .row.done b{color:var(--dim)}
+  .row.on b{color:var(--bone)}
+  .row.on .amt{color:var(--blood)}
+
+  /* footer */
+  footer{margin-top:52px;padding-top:26px;border-top:1px solid var(--line);text-align:center}
+  footer a{
+    color:var(--dim);text-decoration:none;font-size:11px;
+    letter-spacing:.15em;text-transform:uppercase;margin:0 9px;
+    border-bottom:1px solid transparent;padding-bottom:2px;
+  }
+  footer a:hover{color:var(--bone);border-bottom-color:var(--blood)}
+  .stamp{margin-top:20px;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:#3d3833}
+
+  .boot{padding:70px 0;text-align:center;color:var(--dim);font-size:12px;letter-spacing:.14em;text-transform:uppercase}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="mast">
+    <h1>KATA WARRIOR</h1>
+    <div class="rule"></div>
+  </div>
+
+  <!-- YOUR LINE GOES HERE — replace the text between the tags -->
+  <p class="intro" id="intro">[your line here]</p>
+
+  <div id="app">
+    <div class="boot">Loading</div>
+  </div>
+
+  <footer>
+    <a href="https://tiktok.com/@kata.warrior" target="_blank" rel="noopener">TikTok</a>
+    <a href="https://youtube.com/@KataWarrior" target="_blank" rel="noopener">YouTube</a>
+    <a href="https://instagram.com/KataWarrior" target="_blank" rel="noopener">Instagram</a>
+    <div class="stamp" id="stamp"></div>
+  </footer>
+
+</div>
+
+<script>
+const API='https://script.google.com/macros/s/AKfycbyS4lQ_TJzDv_Q9FOa9tpzIHbL2iTpVhYz5TdDDXBZwPpZg2HwAeQ7BZ9HUuVV_jSZ1MA/exec';
+
+function esc(s){const d=document.createElement('div');d.textContent=s==null?'':s;return d.innerHTML;}
+
+(async function(){
+  const app=document.getElementById('app');
+  try{
+    const s=await fetch(API+'?action=getProgramSummary').then(r=>r.json());
+
+    const done=Number(s.total_logged_reps)||0;
+    const goal=Number(s.total_target_reps)||10000;
+    const left=Math.max(0,goal-done);
+    const pct=Math.min(100,(done/goal)*100);
+    const curTarget=Number(s.current_form_target)||500;
+
+    let rows='';
+    (s.form_breakdown||[]).forEach(f=>{
+      const t=Number(f.target_reps)||500;
+      const r=Number(f.logged_reps)||0;
+      const p=Math.min(100,(r/t)*100).toFixed(0);
+      let cls='',fill='';
+      if(f.status==='Complete'){cls='done';fill='done';}
+      else if(f.status==='In Progress'){cls='on';fill='on';}
+      rows+=
+        '<div class="row '+cls+'">'+
+          '<div class="idx">'+esc(f.order)+'</div>'+
+          '<div class="nm"><b>'+esc(f.form_name)+'</b>'+
+            '<div class="track"><i class="'+fill+'" style="width:'+p+'%"></i></div>'+
+          '</div>'+
+          '<div class="amt">'+(r>0?r+' / '+t:'—')+'</div>'+
+        '</div>';
+    });
+
+    app.innerHTML=
+      '<div class="count">'+
+        '<div class="n" id="bigN">0</div>'+
+        '<div class="of">OF '+goal.toLocaleString()+'</div>'+
+      '</div>'+
+      '<div class="bar"><span id="fill"></span></div>'+
+      '<div class="barfoot"><span>'+pct.toFixed(1)+'% complete</span><span>'+left.toLocaleString()+' remaining</span></div>'+
+      '<div class="pair">'+
+        '<div class="cell"><div class="k">In Training</div>'+
+          '<div class="v">'+esc(s.current_form)+'</div>'+
+          '<div class="v" style="color:var(--blood);margin-top:7px;font-size:13px">'+s.current_form_reps+' / '+curTarget+'</div>'+
+        '</div>'+
+        '<div class="cell"><div class="k">Forms Complete</div>'+
+          '<div class="v big">'+s.forms_complete+'<span style="color:var(--dim);font-size:15px"> / '+s.forms_total+'</span></div>'+
+        '</div>'+
+      '</div>'+
+      '<div class="head"><span>The Twenty</span><span>'+done.toLocaleString()+' logged</span></div>'+
+      rows;
+
+    // count-up
+    const el=document.getElementById('bigN');
+    const dur=1300,t0=performance.now();
+    (function step(t){
+      const k=Math.min(1,(t-t0)/dur);
+      el.textContent=Math.round(done*(1-Math.pow(1-k,3))).toLocaleString();
+      if(k<1)requestAnimationFrame(step);
+    })(t0);
+
+    requestAnimationFrame(()=>{document.getElementById('fill').style.width=pct+'%';});
+
+    document.getElementById('stamp').textContent='Updated '+new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+
+  }catch(e){
+    app.innerHTML='<div class="boot">Count unavailable</div>';
+    console.error(e);
+  }
+})();
+</script>
+</body>
+</html>
