@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Log">
+<meta name="theme-color" content="#0a0908">
+<meta name="robots" content="noindex,nofollow">
+<title>Log</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --black:#0a0908;--panel:#121110;--line:#26221f;
+    --bone:#f2ede5;--dim:#7a726a;--blood:#a8322c;--green:#4a6b3f;
+    --cinzel:'Cinzel',Georgia,serif;
+    --label:-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;
+  }
+  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{background:var(--black);color:var(--bone);font-family:var(--label);min-height:100vh;max-width:460px;margin:0 auto;-webkit-font-smoothing:antialiased}
+  .wrap{padding:0 20px 48px}
+
+  .top{padding:26px 0 18px;border-bottom:1px solid var(--line);text-align:center}
+  .top h1{font-family:var(--cinzel);font-weight:900;font-size:17px;letter-spacing:.2em;text-indent:.2em}
+  .now{margin-top:14px;font-family:var(--cinzel);font-size:13px;color:var(--dim)}
+  .now b{color:var(--bone);font-weight:600}
+  .now .r{color:var(--blood)}
+
+  label{display:block;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin:26px 0 8px}
+  select,input,textarea{
+    width:100%;background:var(--panel);border:1px solid var(--line);
+    color:var(--bone);font-size:16px;padding:13px 14px;outline:none;
+    font-family:var(--label);-webkit-appearance:none;appearance:none;border-radius:0;
+  }
+  select:focus,input:focus,textarea:focus{border-color:var(--blood)}
+  textarea{height:70px;resize:none}
+  .reps{
+    font-family:var(--cinzel)!important;font-weight:900!important;
+    font-size:44px!important;text-align:center;padding:14px!important;
+    color:var(--bone)!important;font-variant-numeric:tabular-nums;
+  }
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .rpe{display:flex;align-items:center;gap:14px}
+  input[type=range]{-webkit-appearance:none;flex:1;height:2px;background:var(--line);padding:0;border:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;background:var(--blood);border-radius:50%}
+  .rv{font-family:var(--cinzel);font-weight:600;font-size:19px;color:var(--blood);min-width:24px;text-align:center}
+
+  button{
+    width:100%;margin-top:32px;padding:17px;background:var(--blood);
+    color:#fff;border:none;font-family:var(--cinzel);font-weight:600;
+    font-size:15px;letter-spacing:.18em;text-indent:.18em;cursor:pointer;
+  }
+  button:disabled{opacity:.4}
+
+  .msg{
+    margin-top:18px;padding:13px;text-align:center;font-size:13px;
+    border:1px solid var(--line);display:none;
+  }
+  .msg.ok{display:block;border-color:var(--green);color:#8fbf7f}
+  .msg.err{display:block;border-color:var(--blood);color:#e08b86}
+
+  .link{margin-top:34px;text-align:center}
+  .link a{color:var(--dim);font-size:10px;letter-spacing:.16em;text-transform:uppercase;text-decoration:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <h1>LOG</h1>
+    <div class="now" id="now">&nbsp;</div>
+  </div>
+
+  <label>Form</label>
+  <select id="form"><option value="">Loading&hellip;</option></select>
+
+  <label>Reps</label>
+  <input type="number" class="reps" id="reps" placeholder="0" min="1" max="500" inputmode="numeric">
+
+  <div class="two">
+    <div>
+      <label>Date</label>
+      <input type="date" id="date">
+    </div>
+    <div>
+      <label>Minutes</label>
+      <input type="number" id="mins" placeholder="—" min="1" max="300" inputmode="numeric">
+    </div>
+  </div>
+
+  <label>Effort <span id="rpeL"></span></label>
+  <div class="rpe">
+    <input type="range" id="rpe" min="1" max="10" value="5">
+    <div class="rv" id="rv">5</div>
+  </div>
+
+  <label>Notes</label>
+  <textarea id="notes" placeholder="Optional"></textarea>
+
+  <button id="go">LOG REPS</button>
+  <div class="msg" id="msg"></div>
+
+  <div class="link"><a href="tracker.html">View tracker</a></div>
+
+</div>
+
+<script>
+const API='https://script.google.com/macros/s/AKfycbyS4lQ_TJzDv_Q9FOa9tpzIHbL2iTpVhYz5TdDDXBZwPpZg2HwAeQ7BZ9HUuVV_jSZ1MA/exec';
+const KEY='kw-4b91d7e3a6c25f80';
+
+function today(){
+  const d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+
+function show(t,cls){
+  const m=document.getElementById('msg');
+  m.textContent=t;m.className='msg '+cls;
+  if(cls==='ok')setTimeout(()=>{m.className='msg';},4000);
+}
+
+function paintNow(s){
+  const t=Number(s.current_form_target)||500;
+  document.getElementById('now').innerHTML=
+    '<b>'+s.current_form+'</b> &nbsp;<span class="r">'+s.current_form_reps+' / '+t+'</span>'+
+    '<br>'+Number(s.total_logged_reps).toLocaleString()+' of '+Number(s.total_target_reps).toLocaleString();
+}
+
+document.getElementById('date').value=today();
+document.getElementById('rpe').addEventListener('input',function(){
+  document.getElementById('rv').textContent=this.value;
+});
+
+(async function(){
+  try{
+    const [forms,s]=await Promise.all([
+      fetch(API+'?action=getFormRegistry').then(r=>r.json()),
+      fetch(API+'?action=getProgramSummary').then(r=>r.json())
+    ]);
+    const sel=document.getElementById('form');
+    sel.innerHTML='<option value="">Select&hellip;</option>';
+    forms.forEach(f=>{
+      const o=document.createElement('option');
+      o.value=f.form_name;
+      o.textContent=f.form_name+(f.status==='Complete'?'  \u2713':f.status==='Paused'?'  \u23F8':'');
+      if(f.form_name===s.current_form)o.selected=true;
+      sel.appendChild(o);
+    });
+    paintNow(s);
+  }catch(e){ show('Could not load','err'); }
+})();
+
+document.getElementById('go').addEventListener('click',async function(){
+  const form=document.getElementById('form').value;
+  const reps=document.getElementById('reps').value;
+  if(!form){show('Pick a form','err');return;}
+  if(!reps||Number(reps)<1){show('Enter reps','err');return;}
+
+  this.disabled=true;this.textContent='LOGGING\u2026';
+  try{
+    const res=await fetch(API,{method:'POST',body:JSON.stringify({
+      key:KEY,
+      action:'logKata',
+      form_name:form,
+      reps_this_set:Number(reps),
+      date:document.getElementById('date').value||today(),
+      session_duration_min:document.getElementById('mins').value||'',
+      perceived_exertion:document.getElementById('rpe').value,
+      notes:document.getElementById('notes').value
+    })}).then(r=>r.json());
+
+    if(res.success){
+      show(form+' \u2014 '+res.cumulative_reps+' logged','ok');
+      document.getElementById('reps').value='';
+      document.getElementById('mins').value='';
+      document.getElementById('notes').value='';
+      const s=await fetch(API+'?action=getProgramSummary').then(r=>r.json());
+      paintNow(s);
+    }else{
+      show(res.error||'Failed','err');
+    }
+  }catch(e){ show('Network error','err'); }
+
+  this.disabled=false;this.textContent='LOG REPS';
+});
+</script>
+</body>
+</html>
