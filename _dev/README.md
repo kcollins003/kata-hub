@@ -140,14 +140,24 @@ of its script: Kevin's words first, stand-ins waiting for his words second.
 
 The page knows nothing about who sends the email. Changing the sender never needs a new page.
 
+**The page believes only an answer to the question it asked** (function `answers`, used in `call`). Each answer
+from the backend is checked for the shape of an answer to sign up, load or save before anything is done with it.
+Anything else counts as no answer, and the page asks again as it does after a dropped connection.
+Why: on 5 Oct 2026, moments after the backend was updated, one request to load a link was answered as if the
+backend's address had simply been opened (`{"ok":true,"service":...,"v":3}`). Every other request that day, a few
+dozen in all, was answered properly. The page as it then was took any answer with `ok` in it at its word. The tests
+show what that costs: a link opens as an empty tracker, a made-up link is let in, and a save answered that way is
+taken for saved, after which the page cannot save until it is reloaded and the reps in that save are then dropped
+when phone and Sheet are folded together. The check went to the site in pull request #5.
+
 ## The backend
 
 `backend/Code.gs` is pasted whole into the Sheet's Apps Script editor. After any change:
 
 1. Run `setup` from the editor. It must end with `SELF-TEST PASSED`. It sends no email.
 2. Deploy > Manage deployments > Edit > Version: New version > Deploy. That keeps the web address.
-3. Open the web address: it should answer with the new `v`. A page opened moments after a deploy can get an odd
-   answer once; see Known limits.
+3. Open the web address: it should answer with the new `v`. Moments after a deploy a request can get an odd
+   answer once (see "The page", above); the page treats it as no answer and asks again.
 
 Do not open Project Settings (the gear) once `RESEND_KEY` is in place unless there is a reason to: that page shows
 the key in plain sight.
@@ -209,7 +219,7 @@ One quirk seen twice on 5 Oct: the first Run after a change to permissions logs 
     cd page
     python3 test_site.py                    # the page against Code.gs, end to end (builds its own copy, starts mock_server.js itself)
     python3 build.py && python3 wrap_preview.py && python3 test_preview.py && python3 test_widths.py   # the tracker itself, and ten screen widths
-    python3 build.py <backend web address> && python3 test_real.py <code of a test row>   # the real backend
+    python3 build.py <backend web address> && python3 test_real.py <code of a test row>   # the real backend (see below)
     python3 shots_door.py                   # pictures of the door, after test_site.py
 
 Needs Node, Python, and Playwright with Chromium. `wrap_preview.py`, `shots_door.py` and `make_icon.py` want the
@@ -217,6 +227,15 @@ Cinzel font files in `../shelved/fonts` (they are not in this repo).
 
 `backup-v1-paid/Code.gs` and `backup-v2-deployed/Code.gs` are earlier deployed versions of the script, kept so the
 tests can run today's script against a Sheet those versions made.
+
+`test_real.py` drives the built page against the real backend, so it needs a row of its own in the real Sheet:
+on the first empty row of the Trackers tab put a made-up code (`cs_test_` and at least ten letters or digits) in
+Code, a label such as "test row" in Email, 0 in Logged, Of, Lines and Saves, and the link in Link. Run the test with
+that code. Then clear that row. It writes to that row only. The page is handed to the browser from the `out` folder,
+so the only thing reached over the network is the backend.
+
+`mock_server.js` can answer the next request with the backend's hello instead of carrying it out
+(`/mode {"asGet": n}`); `test_site.py` uses it for the checks on answers that are not answers.
 
 The stand-in Resend answers as the real one did on 5 Oct 2026: a key it does not know gets `401 validation_error
 "API key is invalid"` on `/emails` and `400` on `/domains` (Resend's own pages say 403); no key gets
@@ -240,12 +259,6 @@ a man typed, keep their plain-text format. The tests pass with the stand-in beha
 - The day's count through the service is the script's own. Two sign-ups at the same instant can be counted as one,
   so a little of the 20 kept back can be spent early. Resend's own limit still holds.
 - Until the sending service is switched on, the email comes from the personal address of whoever owns the Sheet.
-- The page trusts the shape of the backend's answers. Seen once, on 5 Oct 2026, seconds after a deploy: a request
-  to load a link was answered as if the web address had simply been opened (`{"ok":true,"service":...,"v":3}`).
-  Every other request before and after, a few dozen in all, was answered properly. The page would take such an answer for "this link is
-  good and holds nothing", and for a save, "saved". The backend refuses the save that follows (it carries no save
-  number), and the next proper load puts the count right, so nothing is lost for good, but the page should check the
-  shape of what it is handed before believing it. Not yet done; it is a change to `page/tracker.src.html`.
 - The page's words for a failed sign-up are one line, "Could not load", whatever the cause.
 - A man's link is his key. Anyone he shares the page with after opening it has his tracker.
 - The email check refuses a few real but unusual addresses (quoted names, non-English letters).

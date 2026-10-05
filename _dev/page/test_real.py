@@ -30,6 +30,14 @@ with sync_playwright() as pw:
 
     def device(name):
         ctx = browser.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=2, is_mobile=True, has_touch=True, user_agent=UA)
+        def from_disk(route):          # the page itself is handed over from this folder, so only the backend is reached over the network
+            name = route.request.url.split("?")[0].rsplit("/", 1)[-1] or "tracker.html"
+            f = here / "out" / name
+            if f.is_file(): route.fulfill(path=str(f), content_type="text/html; charset=utf-8" if name.endswith(".html") else "image/png")
+            else: route.fulfill(status=404, body="not found")
+        ctx.route(f"http://localhost:{PORT}/**", from_disk)
+        ctx.route("**/fonts.googleapis.com/**", lambda r: r.abort())
+        ctx.route("**/fonts.gstatic.com/**", lambda r: r.abort())
         page = ctx.new_page()
         page.on("pageerror", lambda e: errors.append(name + " PAGEERROR " + str(e)))
         t0 = {}

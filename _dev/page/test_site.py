@@ -549,6 +549,90 @@ try:
         check("a save whose answer never arrived is not counted twice", synced(A, 114) and len(state(A)["log"]) == before + 1 and big(d1) == 114, (row(A), before))
         check("and the foot settles on Updated", until(lambda: stamp(d1).startswith("UPDATED "), 8), stamp(d1))
 
+        # ------------------------------------------------------------------ an answer that is not an answer
+        # Seen once on the real backend, moments after it was updated: a request to load a link was answered
+        # as if the backend's address had simply been opened. The page must treat that as no answer at all.
+        def big_or(page):
+            page.wait_for_timeout(1200)
+            return int(page.inner_text("#bigN").replace(",", "")) if page.locator("#bigN").count() else None
+        def held(page, c):
+            return page.evaluate("(k) => { const v = JSON.parse(localStorage.getItem(k) || 'null'); return v && v.s ? JSON.stringify({who: v.s.who, lines: v.s.lines, log: v.s.log}) : null; }", "kw.count.v1:" + c)
+        def hello(): return [e for e in dump()["log"] if e.get("asGet")]
+        page_src = (here / "tracker.src.html").read_text()
+        fn = lambda name: (re.search(r"^function " + name + r"\(.*\}$", page_src, re.M) if name == "okCode" else re.search(r"^function " + name + r"\(.*?^\}$", page_src, re.S | re.M))
+        has_check = bool(fn("answers")) and bool(fn("okCode")) and "throw new Error('not an answer')" in page_src and page_src.count("answers(payload.a,j)") == 1
+        check("(the page has the check, and the test can read it)", has_check)
+        table = {"good": ["the page has no check"], "bad": ["the page has no check"], "n": [0, 0]} if not has_check else d1.evaluate("""(src) => {
+            const answers = new Function(src + '; return answers;')();
+            const k = 'kw_0123456789abcdef0123456789abcdef';
+            const good = [['load', {ok:true, rev:0, data:''}], ['load', {ok:true, rev:7, data:'{"v":1}'}], ['save', {ok:true, rev:1}], ['save', {ok:true, rev:4012}],
+                          ['save', {ok:false, conflict:true, rev:3, data:'{"v":1}'}], ['save', {ok:false, conflict:true, rev:0, data:''}],
+                          ['join', {ok:true, sent:true}], ['join', {ok:true, k:k, mailed:true}], ['join', {ok:true, k:k, mailed:false}],
+                          ['load', {ok:false, error:'code'}], ['load', {ok:false, error:'unpaid'}], ['load', {ok:false, error:'server'}], ['save', {ok:false, error:'request'}], ['save', {ok:false, error:'size'}],
+                          ['join', {ok:false, error:'mail'}], ['join', {ok:false, error:'busy'}], ['join', {ok:false, error:'closed'}], ['join', {ok:false, error:'email'}]];
+            const hi = {ok:true, service:'kata-warrior-tracker', v:3};
+            const bad = [['load', hi], ['save', hi], ['join', hi], ['load', null], ['load', undefined], ['load', 'ok'], ['load', 1], ['load', []], ['load', {}], ['load', {ok:'true', rev:1, data:''}], ['load', {ok:1, rev:1, data:''}],
+                         ['load', {ok:true}], ['load', {ok:true, rev:1}], ['load', {ok:true, data:''}], ['load', {ok:true, rev:'1', data:''}], ['load', {ok:true, rev:-1, data:''}], ['load', {ok:true, rev:1.5, data:''}],
+                         ['load', {ok:true, rev:NaN, data:''}], ['load', {ok:true, rev:Infinity, data:''}], ['load', {ok:true, rev:1, data:null}], ['load', {ok:true, rev:1, data:{}}], ['load', {ok:true, sent:true}],
+                         ['save', {ok:true}], ['save', {ok:true, rev:0}], ['save', {ok:true, rev:null}], ['save', {ok:true, rev:'2'}], ['save', {ok:true, sent:true}], ['save', {ok:true, data:'', k:k}],
+                         ['save', {ok:false, conflict:true, rev:3}], ['save', {ok:false, conflict:true, data:''}], ['save', {ok:false, conflict:true, rev:'3', data:''}],
+                         ['load', {ok:false, conflict:true, rev:3, data:''}], ['join', {ok:false, conflict:true, rev:3, data:''}],
+                         ['join', {ok:true}], ['join', {ok:true, sent:'yes'}], ['join', {ok:true, sent:1}], ['join', {ok:true, k:'kw_short'}], ['join', {ok:true, k:k.toUpperCase()}], ['join', {ok:true, rev:1, data:''}],
+                         ['load', {ok:false}], ['load', {ok:false, error:''}], ['load', {ok:false, error:5}], ['load', {ok:false, error:null}], ['other', {ok:true, rev:1, data:''}], [undefined, {ok:true, sent:true}], ['', {ok:true, rev:1}]];
+            return {good: good.filter(([a, j]) => answers(a, j) !== true).map(v => JSON.stringify(v)), bad: bad.filter(([a, j]) => answers(a, j) !== false).map(v => JSON.stringify(v)), n: [good.length, bad.length]};
+        }""", fn("okCode").group(0) + "\n" + fn("answers").group(0))
+        check("every kind of answer the backend gives is taken as an answer", table["good"] == [] and table["n"][0] == 18, table["good"])
+        check("and nothing else is, least of all the backend's hello to a visitor", table["bad"] == [] and table["n"][1] == 46, table["bad"])
+
+        H = code("H")
+        ctl("/stripe", {"id": H, "email": "hello.man@example.com"})
+        ctxS, dS = device("phone for the hello checks")
+        dS.goto(PAGE + "?k=" + H)
+        until(lambda: dS.locator(".adds").count() == 1 and dS.locator("#suWho").count() == 1, 8)
+        dS.fill("#suWho", "Hello Man"); dS.locator('[data-act="lockWho"]').click()
+        dS.select_option('select[data-add="kata"]', "Bassai"); dS.wait_for_timeout(120)
+        dS.locator('[data-act="begin"]').click()
+        log(dS, 5)
+        check("(a man with a count of five, saved)", synced(H, 5) and big(dS) == 5 and names(dS) == ["Bassai"] and len(hello()) == 0, row(H))
+
+        before = len(state(H)["log"])
+        ctl("/mode", {"asGet": 1})
+        log(dS, 3)
+        check("a save answered with the hello is not believed: the page sends it again, and it is counted once", synced(H, 8) and len(state(H)["log"]) == before + 1 and big(dS) == 8 and len(hello()) == 1 and hello()[0]["a"] == "save", (row(H), len(hello())))
+        check("and the foot settles on Updated", until(lambda: stamp(dS).startswith("UPDATED "), 8) and "warn" not in (dS.get_attribute("#stamp", "class") or ""), stamp(dS))
+
+        mine = held(dS, H)
+        ctl("/mode", {"asGet": 1})
+        sync_now(dS)
+        check("a load answered with the hello is not believed either: his count stays on the screen", len(hello()) == 2 and hello()[1]["a"] == "load" and big_or(dS) == 8 and names(dS) == ["Bassai"], (len(hello()), big_or(dS)))
+        check("and on the phone", held(dS, H) == mine and bool(mine) and '"Bassai"' in mine, held(dS, H))
+        log(dS, 1)
+        check("and the next thing he logs is saved as usual", synced(H, 9) and big(dS) == 9 and len(state(H)["log"]) == before + 2, row(H))
+        dS.reload(); dS.wait_for_timeout(600)
+        check("after a reload the count is as he left it: nothing he logged was lost", until(lambda: big_or(dS) == 9, 6) and names(dS) == ["Bassai"] and row(H)["logged"] == 9, (big_or(dS), row(H)["logged"]))
+
+        ctxH, dH = device("a new phone, first answer is the hello")
+        ctl("/mode", {"asGet": 1})
+        dH.goto(PAGE + "?k=" + H)
+        check("a first visit answered with the hello asks again and then shows his real count, not an empty tracker", until(lambda: big_or(dH) == 9, 10) and names(dH) == ["Bassai"] and dH.locator("#suWho").count() == 0 and dH.inner_text("#who").strip().upper() == "HELLO MAN" and len(hello()) == 3 and hello()[2]["a"] == "load", (big_or(dH), names(dH), dH.locator("#suWho").count(), len(hello())))
+        ctxG, dG = device("a new phone, a made-up link, first answer is the hello")
+        fake = "kw_" + "0123456789abcdef" * 2
+        ctl("/mode", {"asGet": 1})
+        dG.goto(PAGE + "?k=" + fake)
+        check("a made-up link answered with the hello is not let in: asked again, then the door", until(lambda: at_door(dG) and note(dG) == "This link is not active", 8) and len(hello()) == 4 and dG.locator(".adds").count() == 0, (text(dG)[:60], len(hello())))
+        check("and that phone remembers nothing of it", kept(dG) == "{}", kept(dG))
+        ctxJ, dJ = device("a phone at the door, first answer is the hello")
+        dJ.goto(PAGE); dJ.wait_for_timeout(400)
+        rows0 = len(dump()["rows"]); mail0 = len(mails())
+        ctl("/mode", {"asGet": 1})
+        join(dJ, "hello@example.com")
+        check("a sign-up answered with the hello says it could not load; nothing claims an email was sent", until(lambda: said(dJ) == FAILED, 6) and at_door(dJ) and len(dump()["rows"]) == rows0 and len(mails()) == mail0 and len(hello()) == 5, (said(dJ), len(hello())))
+        dJ.locator("#jnGo").click()
+        check("the same tap then sends his link", until(lambda: said(dJ) == CHECK, 6) and len(mail_to("hello@example.com")) == 1 and len(dump()["rows"]) == rows0 + 1, said(dJ))
+        check("(the mock's hello mode is used up)", ctl("/mode", {})["asGet"] == 0)
+        check("the first man's count was not touched by any of it", row(A)["logged"] == 114 and big(d1) == 114, row(A)["logged"])
+        ctxS.close(); ctxH.close(); ctxG.close(); ctxJ.close()
+
         # ------------------------------------------------------------------ undo, start over
         log(d1, 9, "Bassai")
         d1.locator('[data-act="undo"]').click()

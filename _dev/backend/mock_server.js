@@ -22,7 +22,7 @@ function reset() {
   world = makeWorld();
   world.props.STRIPE_KEY_TEST = 'rk_test_good';
   world.props.STRIPE_KEY_LIVE = 'rk_live_good';
-  mode = { down: false, delay: 0, dropNext: 0 };
+  mode = { down: false, delay: 0, dropNext: 0, asGet: 0 };
   parked = {}; seq = 0; log = [];
 }
 reset();
@@ -39,13 +39,15 @@ http.createServer(async (req, res) => {
   if (mode.down) { log.push({ m: req.method, down: true }); req.socket.destroy(); return; }
   if (mode.delay) await new Promise(r => setTimeout(r, mode.delay));
   let out;
+  const asGet = req.method === 'POST' && mode.asGet > 0;          // seen once on the real backend: a POST answered as if the address had simply been opened. The request itself is not carried out.
+  if (asGet) mode.asGet--;
   try {
-    out = req.method === 'POST'
+    out = (req.method === 'POST' && !asGet)
       ? world.gs.doPost({ postData: { contents: body, type: req.headers['content-type'] || '' }, parameter: Object.fromEntries(url.searchParams) })
       : world.gs.doGet({ parameter: Object.fromEntries(url.searchParams) });
   } catch (err) { res.writeHead(500, CORS); res.end('<html>script error</html>'); return; }
   let parsed = {}; try { parsed = JSON.parse(body || '{}'); } catch (e) { /* not JSON */ }
-  log.push({ m: req.method, ct: req.headers['content-type'] || '', a: parsed.a, k: parsed.k, e: parsed.e, keys: Object.keys(parsed).sort().join(','), rev: parsed.rev, bytes: body.length, origin: req.headers.origin || '', answer: JSON.parse(out.getContent()).ok, said: out.getContent().slice(0, 200) });
+  log.push({ m: req.method, ct: req.headers['content-type'] || '', a: parsed.a, k: parsed.k, e: parsed.e, keys: Object.keys(parsed).sort().join(','), rev: parsed.rev, bytes: body.length, origin: req.headers.origin || '', answer: JSON.parse(out.getContent()).ok, said: out.getContent().slice(0, 200), asGet: asGet });
   if (mode.dropNext > 0) { mode.dropNext--; req.socket.destroy(); return; }                                   // the script ran, the answer never arrived
   const id = String(++seq); parked[id] = out.getContent();
   res.writeHead(302, Object.assign({ Location: 'http://127.0.0.1:' + PORT.echo + '/macros/echo?id=' + id }, CORS));
