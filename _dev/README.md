@@ -218,7 +218,7 @@ not yet seen for real.
 - Until the sending service is switched on, the email comes from the personal address of whoever owns the Sheet.
 - The page trusts the shape of the backend's answers. Seen once, on 5 Oct 2026, seconds after a deploy: a request
   to load a link was answered as if the web address had simply been opened (`{"ok":true,"service":...,"v":3}`).
-  Forty-odd requests before and after were answered properly. The page would take such an answer for "this link is
+  Every other request before and after, a few dozen in all, was answered properly. The page would take such an answer for "this link is
   good and holds nothing", and for a save, "saved". The backend refuses the save that follows (it carries no save
   number), and the next proper load puts the count right, so nothing is lost for good, but the page should check the
   shape of what it is handed before believing it. Not yet done; it is a change to `page/tracker.src.html`.
