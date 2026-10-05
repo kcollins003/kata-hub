@@ -89,7 +89,7 @@ Order matters. The second of the two settings to land is the live switch.
 
 To switch it off: empty the From address cell, or delete `RESEND_KEY`.
 
-How it went on 5 Oct 2026, by the clock (Pacific): records live at Cloudflare 1:02 PM; key pasted 1:13;
+How it went on 5 Oct 2026, by the clock (Pacific): records live at Cloudflare by 1:03 PM; key pasted 1:13;
 `checkSender` 1:15, "the service knows this key, and it can only send"; domain Verified 1:16; From address filled
 1:17; Kevin signed up on his iPhone 1:23; the email reached his Gmail inbox as Kata Warrior; the link opened his
 tracker and it saved three times by 1:24. `setup` afterwards: "Sent through the service today by this script: 1."
