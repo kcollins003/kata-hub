@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0a0908">
+<title>Kata Warrior — Privacy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;900&display=swap" rel="stylesheet">
+<style>
+  /* The same look as katawarrior.com. One narrow column of plain words. No script. */
+  :root{
+    --black:#0a0908;
+    --line:#26221f;
+    --bone:#f2ede5;
+    --dim:#7a726a;
+    --soft:#9a9188;
+    --blood:#a8322c;
+    --cinzel:'Cinzel',Georgia,serif;
+    --label:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;
+    color-scheme:dark;
+  }
+  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%;background:var(--black)}
+  body{
+    background:var(--black);
+    color:var(--bone);
+    font-family:var(--label);
+    font-size:16px;
+    line-height:1.65;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  body::after{
+    content:'';position:fixed;inset:0;pointer-events:none;z-index:2;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.035'/%3E%3C/svg%3E");
+  }
+  :focus-visible{outline:1px solid var(--blood);outline-offset:3px}
+  .wrap{max-width:520px;margin:0 auto;padding:0 22px 64px;position:relative;z-index:1}
+
+  .mast{padding:38px 0 30px;text-align:center;border-bottom:1px solid var(--line)}
+  .mast a{color:inherit;text-decoration:none;display:inline-block}
+  .mast .brand{
+    font-family:var(--cinzel);font-weight:900;font-size:clamp(20px,7.2vw,26px);
+    letter-spacing:.22em;text-indent:.22em;line-height:1;
+  }
+  .mast .rule{width:34px;height:2px;background:var(--blood);margin:16px auto 0}
+
+  h1{
+    font-family:var(--cinzel);font-weight:600;font-size:22px;
+    letter-spacing:.14em;text-indent:.14em;line-height:1.2;
+    text-align:center;padding:34px 0 0;
+  }
+  .date{
+    text-align:center;font-size:12px;line-height:1.4;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--soft);padding:12px 0 0;
+  }
+  .lead{padding:28px 0 0}
+
+  h2{
+    font-family:var(--cinzel);font-weight:600;font-size:14px;
+    letter-spacing:.18em;line-height:1.35;text-transform:uppercase;
+    margin:36px 0 12px;
+  }
+  p{margin:0 0 14px;overflow-wrap:break-word}
+  ul{list-style:none;margin:0 0 14px}
+  li{position:relative;padding-left:20px;margin:0 0 8px;overflow-wrap:break-word}
+  li::before{content:'';position:absolute;left:2px;top:.78em;width:7px;height:2px;background:var(--blood)}
+  main a{color:var(--bone);text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--blood)}
+
+  footer{margin-top:52px;padding-top:26px;border-top:1px solid var(--line);text-align:center}
+  footer a{
+    color:var(--dim);text-decoration:none;font-size:11px;
+    letter-spacing:.15em;text-transform:uppercase;margin:0 9px;
+    border-bottom:1px solid transparent;padding-bottom:2px;
+    display:inline-block;
+  }
+  footer a:hover{color:var(--bone);border-bottom-color:var(--blood)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="mast">
+    <a href="./" aria-label="Kata Warrior, home"><div class="brand">KATA WARRIOR</div></a>
+    <div class="rule"></div>
+  </header>
+
+  <main>
+    <h1>Privacy</h1>
+    <p class="date">Effective October 5, 2026</p>
+
+    <p class="lead">The Kata Warrior Tracker is run by me, Kevin Collins, as Kata Warrior LLC.</p>
+
+    <h2>What I keep</h2>
+    <ul>
+      <li>Your email address.</li>
+      <li>The name you type into your tracker.</li>
+      <li>Your challenge, and every rep you log with its date and time.</li>
+      <li>Your private link.</li>
+      <li>When you signed up, when your tracker last saved, how many times it has saved, and when your link was emailed.</li>
+    </ul>
+
+    <h2>Where it is kept</h2>
+    <ul>
+      <li>In a Google Sheet that only I can open.</li>
+      <li>On your phone, in the browser, so your tracker opens next time.</li>
+      <li>Resend, the service that delivers the link email, gets your address and that email. It keeps a copy for 30 days.</li>
+    </ul>
+
+    <h2>What I use it for</h2>
+    <ul>
+      <li>To email you your link.</li>
+      <li>To keep your challenge tracker live.</li>
+    </ul>
+    <p>I'm not planning on sending any other emails yet. I'll wait until I have something to share, like kata tutorials.</p>
+    <p>I won't sell your info. Definitely not.</p>
+
+    <h2>What is not here</h2>
+    <p>No ads. No trackers. No cookies. The link email has no tracking in it. This site does not follow you to other sites, so there is nothing for a browser's Do Not Track signal to switch off.</p>
+    <p>The pages are served by GitHub. The lettering comes from Google, and your tracker saves to Google. Each sees your internet address when a page loads or your tracker saves, as any website's host does, and may keep its own record of it.</p>
+
+    <h2>Your link is your key</h2>
+    <p>There is no password. Anyone with your link can open your tracker and change it. If your link gets out, email me and I will delete the tracker. You can start a new one at <a href="tracker.html?new">katawarrior.com/tracker.html?new</a>.</p>
+
+    <h2>To fix it or delete it</h2>
+    <p>Email <a href="mailto:kevin@katawarrior.com">kevin@katawarrior.com</a> from the address you signed up with. I will correct it or delete it. The copy on your phone stays until you clear this site's data in your browser.</p>
+
+    <h2>If this page changes</h2>
+    <p>I will change the date at the top.</p>
+  </main>
+
+  <footer>
+    <a href="./">katawarrior.com</a>
+    <a href="tracker.html">Tracker</a>
+  </footer>
+
+</div>
+</body>
+</html>
