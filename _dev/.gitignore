@@ -1,5 +1,7 @@
 page/out/*.html
 page/out-test/
 page/shots/
+privacy/out-site/
+privacy/shots/
 *.out
 __pycache__/

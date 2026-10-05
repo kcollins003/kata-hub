@@ -127,7 +127,10 @@ try:
         check("the door: no log button, no menu, no name, and the way back to the site", p0.locator("#dock").is_hidden() and p0.locator("#more").is_hidden() and p0.locator("#who").is_hidden() and p0.locator('footer a[href="https://katawarrior.com"]').count() == 1)
         box = p0.evaluate("() => { const e = document.querySelector('#jnEmail'), c = getComputedStyle(e); return {type: e.type, mode: e.inputMode, auto: e.autocomplete, name: e.name, caps: e.getAttribute('autocapitalize'), fix: e.getAttribute('autocorrect'), max: e.maxLength, size: c.fontSize, h: e.getBoundingClientRect().height, label: document.querySelector('label[for=jnEmail]').textContent, says: e.getAttribute('aria-describedby')}; }")
         check("the email box asks the phone for its email keyboard and his saved address, and is big enough not to zoom", box["type"] == "email" and box["mode"] == "email" and box["auto"] == "email" and box["name"] == "email" and box["caps"] == "off" and box["fix"] == "off" and box["max"] == 120 and box["size"] == "16px" and box["h"] >= 44 and box["label"] == "Email" and box["says"] == "jnMsg", box)
-        check("under the button, a line says what giving his email means", p0.locator(".fine").is_visible() and len(p0.inner_text(".fine").strip()) > 20)
+        check("under the button, a line says what giving his email means", p0.locator(".fine:not(.pv)").is_visible() and len(p0.inner_text(".fine:not(.pv)").strip()) > 20)
+        pv = p0.locator(".fine.pv a")
+        check("under that line, a link to the privacy page: the word privacy is in it, it opens beside the door, and a thumb can hit it", pv.count() == 1 and pv.is_visible() and "privacy" in pv.inner_text().strip().lower() and pv.get_attribute("href") == "privacy.html" and pv.get_attribute("target") == "_blank" and pv.get_attribute("rel") == "noopener" and pv.bounding_box()["height"] >= 40 and pv.bounding_box()["width"] >= 60, (pv.count(), pv.bounding_box() if pv.count() else None))
+        check("the door with that link on it has still asked the backend for nothing", len(dump()["log"]) == 0, dump()["log"])
         p0.screenshot(path=str(shots / "site-00-door.png"), full_page=True)
 
         for bad in ["", "   ", "john", "john@", "john@example", "john smith@example.com", "john@example.com, x@example.com", "<img src=x onerror=alert(1)>@example.com"]:
@@ -388,7 +391,7 @@ try:
             pW.fill("#jnEmail", "nobody"); pW.locator("#jnGo").click(); pW.wait_for_timeout(150)
             g = pW.evaluate("""() => {
                 const vw = document.documentElement.clientWidth, out = {vw: vw, scroll: document.documentElement.scrollWidth, items: []};
-                for (const sel of ['#brand', '#tag', '#jnNote', '.intro', 'label[for=jnEmail]', '#jnEmail', '#jnMsg', '#jnGo', '.fine', 'footer a']) {
+                for (const sel of ['#brand', '#tag', '#jnNote', '.intro', 'label[for=jnEmail]', '#jnEmail', '#jnMsg', '#jnGo', '.fine', '.fine.pv a', 'footer a']) {
                     const e = document.querySelector(sel); if (!e) { out.items.push([sel, 'missing']); continue; }
                     const r = e.getBoundingClientRect();
                     out.items.push([sel, Math.round(r.left), Math.round(r.right), Math.round(r.height), r.left >= -0.5 && r.right <= vw + 0.5 && r.width > 0 && r.height > 0]);
@@ -399,12 +402,14 @@ try:
                 const b2 = document.querySelector('#jnGo').getBoundingClientRect();
                 const top = document.elementFromPoint(b2.left + b2.width / 2, b2.top + b2.height / 2);
                 out.clear = top === document.querySelector('#jnGo');
+                const go = document.querySelector('#jnGo').getBoundingClientRect(), nt = document.querySelector('.fine').getBoundingClientRect(), pv = document.querySelector('.fine.pv a').getBoundingClientRect(), ft = document.querySelector('footer').getBoundingClientRect();
+                out.stack = go.bottom <= nt.top + 0.5 && nt.bottom <= pv.top + 0.5 && pv.bottom <= ft.top + 0.5 && pv.height >= 40;
                 return out; }""")
-            ok = g["scroll"] <= g["vw"] and all(it[-1] is True for it in g["items"]) and g["tap"] >= 44 and g["clear"]
+            ok = g["scroll"] <= g["vw"] and all(it[-1] is True for it in g["items"]) and g["tap"] >= 44 and g["clear"] and g["stack"]
             if not ok: worst.append((wd, g))
             if wd in (320, 390): pW.screenshot(path=str(shots / ("site-00d-door-%d.png" % wd)), full_page=True)
             ctxW.close()
-        check("at every width from 280 to 1366 the door fits: nothing runs off the side, nothing covers the button, both controls are 44 high or more", not worst, worst[:1])
+        check("at every width from 280 to 1366 the door fits: nothing runs off the side, nothing covers the button, both controls are 44 high or more, and the button, its line, the privacy link and the foot sit one under the other", not worst, worst[:1])
 
         # ------------------------------------------------------------------ how the door talks
         d = dump()

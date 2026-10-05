@@ -13,6 +13,7 @@ The Sheet is also the email list: one row per man.
 |---|---|---|
 | The page | `tracker.html` at the top of the repo | `page/tracker.src.html` |
 | The Home Screen icon | `tracker-icon.png` at the top of the repo | `page/make_icon.py` |
+| The privacy page | `privacy.html` at the top of the repo | written by hand; there is no build |
 | The backend | Apps Script inside the Google Sheet "Kata Warrior Trackers" | `backend/Code.gs`, and its settings file `backend/appsscript.json` |
 | Kevin's switches and email words | The "Words" tab of that Sheet | made once by `setup()` in `Code.gs` |
 | The sending service's key | Script Properties of that Apps Script project, as `RESEND_KEY` | pasted by Kevin, by hand |
@@ -150,6 +151,44 @@ show what that costs: a link opens as an empty tracker, a made-up link is let in
 taken for saved, after which the page cannot save until it is reloaded and the reps in that save are then dropped
 when phone and Sheet are folded together. The check went to the site in pull request #5.
 
+## The privacy page
+
+`privacy.html` at the top of the repo is the file to edit. There is no build and no script on it. It is pull
+request #6, opened 5 Oct 2026 and waiting for Kevin's word. Two links lead to it: the foot of `index.html`, and the tracker's door (the `privacy`
+line of the `COPY` block; the link opens in a new tab, so what a man has typed at the door stays).
+
+Whose words. Three lines are Kevin's own: "To keep your challenge tracker live.", the line on other emails, and
+"I won't sell your info. Definitely not." The rest is a draft he read and let stand. Two lines of that draft he
+did not answer, and they were left off: handing the list to no one not named on the page, and emailing everyone
+when the page changes. Nothing on the page says how a man stops future emails: that line is Kevin's to write
+when there is such an email.
+
+Every statement on it was checked against the code on 5 Oct 2026, by a second reader as well. What each rests on:
+
+| The page says | True because |
+|---|---|
+| What I keep: email, name, the challenge and every rep with its date and time, his link, when he signed up, the last save, how many saves, when the link was emailed | Those are the columns of a row (`HEAD` and `HEAD_MAILED` in `Code.gs`). Each log entry carries a time (`tracker.src.html`). The script reads nothing of a request but its body: no device, no internet address. |
+| In a Google Sheet that only I can open | Drive showed one permission on the Sheet on 5 Oct: its owner. |
+| On your phone, in the browser | `localStorage`, under `kw.count.v1.code` and `kw.count.v1:<code>`. The email is not kept there. |
+| Resend gets the address and that email, and keeps a copy for 30 days | `send_` posts `from`, `to`, `subject` and `text`, and the text ends with his link. Thirty days is Resend's own figure for every plan (its pricing page and its page on quotas, read 5 Oct). |
+| No ads, no trackers, no cookies | Nothing in the pages loads an outside script or sets a cookie, and `fetch` is called without credentials. GitHub Pages and Google's font host sent no `Set-Cookie` on 5 Oct. |
+| The link email has no tracking in it | It is sent as plain text. A tracking image or rewritten links need HTML. |
+| GitHub serves the pages; the lettering and the saves go to Google; each sees his internet address | The only outside hosts in the pages are the two font hosts and the script's. |
+| No password; anyone with the link can open the tracker and change it | A code is all `load` and `save` ask for. |
+| Deleted on request; a new one can be started at `tracker.html?new` | Deleting the row kills the link, and the same address then gets a new row and a new link (`test_backend.js`, "Kevin tidying the sheet"). His phone remembers the dead link and does not show the door without `?new`. |
+| The copy on the phone stays until he clears the site's data | Nothing in the page removes it. Start over empties the count, on the phone and in the Sheet, and keeps the name and the link. |
+
+**When the left column stops being true, the page changes first.** One switch breaks it with no change of code:
+emptying the From address cell sends the link email through Google instead of Resend.
+
+What the page was written to cover: the six things California's online privacy law lists (Business and
+Professions Code 22575(b)). What is collected and who else gets it; how to have it reviewed and changed; how a
+change to the page is made known; an effective date; what is done with a browser's Do Not Track signal; and
+whether others can collect a man's doings across sites. Section 22577(b) counts a text link with the word
+"privacy" in it, on the home page, as posting it. A free tracker may sit outside that law, whose "consumer" is
+someone who buys or leases. The page is posted regardless. Email that promotes something is under a separate
+law (CAN-SPAM): see the repo note, `.github/README.md`.
+
 ## The backend
 
 `backend/Code.gs` is pasted whole into the Sheet's Apps Script editor. After any change:
@@ -221,9 +260,15 @@ One quirk seen twice on 5 Oct: the first Run after a change to permissions logs 
     python3 build.py && python3 wrap_preview.py && python3 test_preview.py && python3 test_widths.py   # the tracker itself, and ten screen widths
     python3 build.py <backend web address> && python3 test_real.py <code of a test row>   # the real backend (see below)
     python3 shots_door.py                   # pictures of the door, after test_site.py
+    cd ../privacy
+    python3 test_privacy.py <folder>        # the privacy page and the two links to it. <folder> is a checkout of the
+                                            # branch about to be published; with no folder, the files on origin/main
 
-Needs Node, Python, and Playwright with Chromium. `wrap_preview.py`, `shots_door.py` and `make_icon.py` want the
-Cinzel font files in `../shelved/fonts` (they are not in this repo).
+Needs Node, Python, and Playwright with Chromium. `wrap_preview.py`, `shots_door.py`, `make_icon.py` and
+`test_privacy.py` want the Cinzel font files in `../shelved/fonts` (they are not in this repo).
+
+`test_privacy.py` holds the privacy page's words, line for line. Change the page and that list changes with it.
+The labels of the two links are free to change as long as the word "privacy" stays in them.
 
 `backup-v1-paid/Code.gs` and `backup-v2-deployed/Code.gs` are earlier deployed versions of the script, kept so the
 tests can run today's script against a Sheet those versions made.
@@ -261,6 +306,14 @@ a man typed, keep their plain-text format. The tests pass with the stand-in beha
 - Until the sending service is switched on, the email comes from the personal address of whoever owns the Sheet.
 - The page's words for a failed sign-up are one line, "Could not load", whatever the cause.
 - A man's link is his key. Anyone he shares the page with after opening it has his tracker.
+- His code travels in the address (`?k=`). So GitHub's servers, which serve the page, are sent it, and it sits in
+  his browser's history. Written after a `#` it would never leave the phone. Changing that means changing
+  `readCode`, the link the backend writes and emails, and keeping the links already sent working.
+- Safari empties a site's saved data after about seven days of use without a visit to the site (WebKit's own
+  rule; a page added to the Home Screen is spared). A man who comes back after that sees the door. Typing his
+  email sends his link again, and his count comes back from the Sheet.
+- Deleting a row takes it off the Sheet, not out of the Sheet's version history.
+- The tracker in use has no link to the privacy page. The door has one and the home page has one.
 - The email check refuses a few real but unusual addresses (quoted names, non-English letters).
 - A From name is cleaned before it goes to the service: `< > " . , ; : @ \ ( ) [ ]` become spaces.
 - One man's count can hold about 5,000 log entries (400,000 characters).
