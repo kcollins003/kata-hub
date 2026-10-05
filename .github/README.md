@@ -21,6 +21,25 @@ Open the Sheet. Go to the tab **Words**. Type in column B. It takes effect at on
 - **Email subject** and **Email body** are the email. His link is added under the body.
   To put the link somewhere else, write `{link}` where it goes.
 - **From name** is the name the email comes from.
+- **From address** is the address it comes from, once the sending service is set up (see below).
+
+## Who sends the email
+
+- **Until the sending service is set up:** Google sends it, from the Google account that owns the Sheet.
+  It shows that account's address. A personal Google account may send about 100 a day.
+- **Once it is set up:** Resend (resend.com) sends it, as the address on the **From address** row.
+  The free plan sends 100 a day and 3,000 a month.
+
+Setting it up takes three things only Kevin can do:
+
+1. A Resend account.
+2. The domain `katawarrior.com` added and verified there. Resend's "Sign in to Cloudflare" button adds the
+   records it needs. They sit on their own names and leave the iCloud mail records alone.
+3. A key made in Resend with **Sending access** only, pasted into the script's settings:
+   the Sheet > Extensions > Apps Script > Project Settings (the gear) > Script Properties > `RESEND_KEY`.
+
+The key is a password. It goes in that one box and nowhere else: not in this repo, not in a chat, not in the Sheet.
+To stop using the service, delete `RESEND_KEY` or empty the **From address** cell; Google sends again.
 
 ## To stop sign-ups
 
@@ -61,6 +80,5 @@ That is not a job to do by hand. The steps and the tests are in `_dev/README.md`
 
 ## Worth knowing
 
-- The email is sent by the Google account that owns the Sheet, and shows that account's address.
-- A personal Google account may send about 100 of these a day.
-- No keys or passwords are needed anywhere, and none belong in this repo.
+- The one key in the whole thing is the sending service's, and it lives in the script's settings. None belong in this repo.
+- Past the day's limit on emails, a new man is told the page could not load. His row is kept, and the same tap works the next day.
