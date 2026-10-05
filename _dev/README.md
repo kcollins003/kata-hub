@@ -13,7 +13,7 @@ The Sheet is also the email list: one row per man.
 |---|---|---|
 | The page | `tracker.html` at the top of the repo | `page/tracker.src.html` |
 | The Home Screen icon | `tracker-icon.png` at the top of the repo | `page/make_icon.py` |
-| The backend | Apps Script inside the Google Sheet "Kata Warrior Trackers" | `backend/Code.gs` |
+| The backend | Apps Script inside the Google Sheet "Kata Warrior Trackers" | `backend/Code.gs`, and its settings file `backend/appsscript.json` |
 | Kevin's switches and email words | The "Words" tab of that Sheet | made once by `setup()` in `Code.gs` |
 | The sending service's key | Script Properties of that Apps Script project, as `RESEND_KEY` | pasted by Kevin, by hand |
 
@@ -128,6 +128,11 @@ The page knows nothing about who sends the email. Changing the sender never need
 
 1. Run `setup` from the editor. It must end with `SELF-TEST PASSED`. It sends no email.
 2. Deploy > Manage deployments > Edit > Version: New version > Deploy. That keeps the web address.
+3. Open the web address: it should answer with the new `v`. A page opened moments after a deploy can get an odd
+   answer once; see Known limits.
+
+Do not open Project Settings (the gear) once `RESEND_KEY` is in place unless there is a reason to: that page shows
+the key in plain sight.
 
 Functions meant to be run by hand: `setup`, `checkSender`, and `checkStripe` (only if the tracker is ever sold).
 
@@ -156,8 +161,28 @@ These slow a flood. The sender's own daily limit is what stops one.
 Links from a Stripe checkout (`cs_test_`, `cs_live_`) still open a tracker if a row for one is added by hand, or if
 Stripe keys are ever put in Script Properties. That path is kept in case the tracker is ever sold.
 
-Google permissions the script needs, all granted already: this Sheet only, send email as the owner, and connect
-to an outside service (first used for Stripe; the sending service uses the same permission).
+### Google permissions
+
+The script needs three, all granted by Kevin already:
+
+| Google's words | Why |
+|---|---|
+| View and manage spreadsheets that this application has been installed in | this Sheet, and only this Sheet |
+| Send email as you | the link email, while Google is the sender |
+| Connect to an external service | the sending service (and Stripe, if the tracker is ever sold) |
+
+They are written out in the project's settings file, `appsscript.json` (in the editor's file list; a copy is in
+`backend/appsscript.json`), under `oauthScopes`. Left to itself, Google works out the list by scanning the code,
+and on 5 Oct 2026 its scan of version 3 added a fourth that nothing in the script uses ("Display and run third-party
+web content in prompts and sidebars"). Rather than ask Kevin to grant that, the list is pinned to the three.
+
+So: **a change to `Code.gs` that uses a new Google service needs its permission added to `oauthScopes` by hand**,
+or the call fails with "You do not have permission to call ...". Check the list at Overview (the i on the left) >
+Project OAuth Scopes. If Run ever shows "Authorization required", that is a new permission being asked for:
+stop and find out which before anyone approves it.
+
+One quirk seen twice on 5 Oct: the first Run after a change to permissions logs "Execution started" and
+"Execution completed" and nothing between. It ran nothing. Press Run again.
 
 ## Tests
 
@@ -191,6 +216,12 @@ not yet seen for real.
 - The day's count through the service is the script's own. Two sign-ups at the same instant can be counted as one,
   so a little of the 20 kept back can be spent early. Resend's own limit still holds.
 - Until the sending service is switched on, the email comes from the personal address of whoever owns the Sheet.
+- The page trusts the shape of the backend's answers. Seen once, on 5 Oct 2026, seconds after a deploy: a request
+  to load a link was answered as if the web address had simply been opened (`{"ok":true,"service":...,"v":3}`).
+  Forty-odd requests before and after were answered properly. The page would take such an answer for "this link is
+  good and holds nothing", and for a save, "saved". The backend refuses the save that follows (it carries no save
+  number), and the next proper load puts the count right, so nothing is lost for good, but the page should check the
+  shape of what it is handed before believing it. Not yet done; it is a change to `page/tracker.src.html`.
 - The page's words for a failed sign-up are one line, "Could not load", whatever the cause.
 - A man's link is his key. Anyone he shares the page with after opening it has his tracker.
 - The email check refuses a few real but unusual addresses (quoted names, non-English letters).
