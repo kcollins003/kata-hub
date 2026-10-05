@@ -11,24 +11,17 @@
  *   He types his email on the page. This script gives that email a row and a private link,
  *   and emails him the link. The link is his key: it is sent to his inbox and shown nowhere else,
  *   so no one opens another man's tracker by typing his address.
- *   The email is sent by the sending service once it is set up (see below); until then by Google,
- *   from the account that owns this Sheet.
+ *   The email goes out from the Google account that owns this Sheet.
  *
  * KEVIN'S SWITCHES AND HIS EMAIL WORDS are on the tab called "Words", not in this file.
  *   Change a cell there and it takes effect at once. Nothing here needs touching.
  *
- * NO SECRETS IN THIS FILE. Keys go in Project Settings (the gear on the left) > Script Properties, and nowhere else.
- *     RESEND_KEY        the sending service's key (starts re_). Make it with "Sending access" only.
- *                       With it in place, and an address on the Words tab's "From address" row,
- *                       the link email is sent by Resend as that address. Take the key away, or empty that cell, and Google sends again.
- *                       Run "checkSender" to have the service say whether it knows the key. That sends no email.
- *                       If the service is in use and refuses an email, Google is NOT used instead: the man is told
- *                       it did not send, and the reason is in this project's Executions list.
- *     MAIL_TALLY        not a key. The script's own count of what it has sent through the service today. Leave it be.
- *   The tracker is free, so no Stripe key is needed. If it is ever sold:
+ * NO SECRETS IN THIS FILE.
+ *   The tracker is free, so no Stripe key is needed. If it is ever sold, the two keys go in
+ *   Project Settings (the gear on the left) > Script Properties
  *     STRIPE_KEY_TEST   a restricted key from a Stripe sandbox   (starts rk_test_)
  *     STRIPE_KEY_LIVE   a restricted key from Stripe live mode   (starts rk_live_)
- *   Each Stripe key needs one permission only: Checkout Sessions, Read.
+ *   Each key needs one permission only: Checkout Sessions, Read.
  *
  * AFTER ANY CHANGE TO THIS FILE:
  *   1. Run "setup" from this editor (pick it in the menu above, press Run). It must end with SELF-TEST PASSED.
@@ -63,23 +56,13 @@ var BOX_NEW         = 3;                   // most new sign-ups for one mailbox 
 var BOX_MAILS       = 4;                   // most link emails to one mailbox in that time
 var MAIL_RESERVE    = 20;                  // the last emails of the day are kept for men asking again for a link they were sent before
 
-/* The sending service (Resend). Used only when BOTH are set: its key in Script Properties, and a From address on the Words tab. */
-var SERVICE_URL     = 'https://api.resend.com/emails';
-var SERVICE_CHECK   = 'https://api.resend.com/domains';   // asked by checkSender only: a question that sends no email
-var SERVICE_KEY     = 'RESEND_KEY';        // the NAME of the Script Property that holds the key. The key itself is never in this file.
-var SERVICE_WAIT    = 15;                  // seconds to wait for the service before giving up on one email (the page itself gives up at 25)
-var SERVICE_PER_DAY = 100;                 // what the service's free plan sends in a day. On a paid plan with no daily limit, raise this.
-var SERVICE_TALLY   = 'MAIL_TALLY';        // Script Property kept by this script: the day, and how many emails it has sent through the service that day
-
 /* The Words tab: what each row is called, what is used while its cell is empty, and a note to Kevin on what it does. */
 var WORDS_TAB  = 'Words';
-var WORDS_ROWS = 100;                      // how far down the Words tab is read
 var DEF        = { from: 'Kata Warrior', subject: 'Kata Warrior Tracker', body: 'Build your own kata challenge and track it' };
 var WORDS      = [
   ['Sign-ups',        'open',      'open or closed. Closed stops new sign-ups and all link emails. Men who already have a link keep using it.'],
   ['Open right away', 'no',        'no: his link is emailed and shown nowhere else, so every address on the list is one that works. yes: a new email also has its tracker opened on the spot. Faster for him, but the address is never checked: a mistyped or made-up address gets a tracker, and whoever types an address first holds its link.'],
-  ['From name',       DEF.from,    'The name the email comes from.'],
-  ['From address',    '',          'The address the email comes from, once the sending service is set up: one address at the domain verified with the service. Left empty, Google sends the email, from the account that owns this Sheet. Once the service is set up, anything here that is not one plain address means no email is sent.'],
+  ['From name',       DEF.from,    'The name the email comes from. The address it comes from is the Google account that owns this Sheet.'],
   ['Email subject',   DEF.subject, 'The subject of the email that carries his link.'],
   ['Email body',      DEF.body,    'The email itself. His link is added underneath. To put it somewhere else, write {link} where it goes.']
 ];
@@ -90,7 +73,7 @@ var WORDS      = [
    The page sends everything else as a POST: sign up, load a count, or save one.
 ------------------------------------------------------------------ */
 function doGet() {
-  return out_({ ok: true, service: 'kata-warrior-tracker', v: 3 });
+  return out_({ ok: true, service: 'kata-warrior-tracker', v: 2 });
 }
 
 function doPost(e) {
@@ -210,21 +193,13 @@ function mail_(email, box, code, words, cache, fresh, sentBefore) {
   if (!email_(email) || !CODE_RE.test(code)) return false;                     // a second lock on the door; join_ has already checked both
   var link = PAGE + '?k=' + code;
   var body = words.body.indexOf('{link}') >= 0 ? words.body.split('{link}').join(link) : words.body + '\n\n' + link;
-  var kept = 'the last ' + MAIL_RESERVE + ' emails of the day are kept for men asking again for a link they were sent before';
-  var key = '';
   try {
-    if (words.sender || words.senderBad) key = serviceKey_();                  // the key matters only once the From address cell has something in it
-    if (key && words.senderBad) throw new Error('the sending service is switched on, but the From address on the Words tab is not one plain address');
-    if (key && words.sender) {                                                 // the sending service, and only the sending service: if it fails, Google is not used instead
-      if (!sentBefore && sentToday_() >= SERVICE_PER_DAY - MAIL_RESERVE) throw new Error(kept);
-      send_(key, words, email, body);
-      countToday_();
-    } else {                                                                   // Google, from the account that owns this Sheet
-      if (!sentBefore && MailApp.getRemainingDailyQuota() <= MAIL_RESERVE) throw new Error(kept);
-      MailApp.sendEmail({ to: email, subject: words.subject, body: body, name: words.from });
+    if (!sentBefore && MailApp.getRemainingDailyQuota() <= MAIL_RESERVE) {
+      throw new Error('the last ' + MAIL_RESERVE + ' emails of the day are kept for men asking again for a link they were sent before');
     }
+    MailApp.sendEmail({ to: email, subject: words.subject, body: body, name: words.from });
   } catch (err) {
-    console.error('link email not sent: ' + scrub_(err && err.message ? err.message : err, [email, key]));   // most often: the day's email is used up
+    console.error('link email not sent: ' + (err && err.message ? err.message : err));   // most often: the day's email is used up
     return false;
   }
   try {
@@ -247,98 +222,27 @@ function mail_(email, box, code, words, cache, fresh, sentBefore) {
   return true;
 }
 
-/* ------------------------------------------------------------------
-   THE SENDING SERVICE
-   One request per email, to one address, as plain text. The key travels in the request's header and nowhere else.
------------------------------------------------------------------- */
-function serviceKey_() {
-  return String(PropertiesService.getScriptProperties().getProperty(SERVICE_KEY) || '').replace(/\s+/g, '');
-}
-
-function send_(key, words, email, body) {
-  var res = UrlFetchApp.fetch(SERVICE_URL, {
-    method: 'post',
-    contentType: 'application/json',
-    headers: { Authorization: 'Bearer ' + key },
-    payload: ascii_(JSON.stringify({ from: fromLine_(words), to: [email], subject: words.subject, text: body })),   // plain ASCII on the wire, so no accent, curly quote or emoji in Kevin's words can arrive damaged
-    muteHttpExceptions: true,
-    timeoutSeconds: SERVICE_WAIT
-  });
-  var status = res.getResponseCode();
-  if (status >= 200 && status < 300) return;                                  // taken for sending
-  throw new Error('the sending service answered ' + status + '. ' + said_(res));
-}
-
-/* What the service said, in its own words: the name of the trouble, then its message. */
-function said_(res) {
-  var text = '', why = '';
-  try { text = String(res.getContentText()); } catch (err0) { text = ''; }
-  try {
-    var j = JSON.parse(text);
-    why = [j.name || j.type || '', j.message || ''].join(' ');
-  } catch (err) { why = ''; }
-  if (!/\S/.test(why)) why = text.replace(/<[^>]*>/g, ' ');                    // not the service's own answer (something in front of it, say): show a little of what did come back
-  return why.replace(/\s+/g, ' ').replace(/^ | $/g, '').slice(0, 220);
-}
-
-/* "Kata Warrior <kevin@katawarrior.com>". The name is Kevin's, from the Words tab, with anything that could bend the line taken out. */
-function fromLine_(words) {
-  var name = String(words.from).replace(/[\u0000-\u001f\u007f<>".,;:@\\()\[\]]/g, ' ').replace(/\s+/g, ' ').replace(/^ | $/g, '');
-  return name ? name + ' <' + words.sender + '>' : words.sender;
-}
-
-/* How many emails this script has sent through the service today (the day by the world clock, as near as the service's own day can be told). */
-function sentToday_() {
-  var v = String(PropertiesService.getScriptProperties().getProperty(SERVICE_TALLY) || '').split('|');
-  return v[0] === day_() ? (Math.floor(Number(v[1])) || 0) : 0;
-}
-function countToday_() {
-  try {
-    PropertiesService.getScriptProperties().setProperty(SERVICE_TALLY, day_() + '|' + (sentToday_() + 1));
-  } catch (err) { /* the tally is a courtesy */ }
-}
-function day_() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-/* Before a line is written to the log: the man's own address and the key itself are taken out of it, wherever they sit,
-   and then anything else shaped like an email address or like a key. */
-function scrub_(text, hide) {
-  var s = String(text);
-  for (var i = 0; hide && i < hide.length; i++) {
-    var h = String(hide[i] == null ? '' : hide[i]);
-    if (h.length >= 6) s = s.split(h).join(h.indexOf('@') > 0 ? '(an address)' : '(a key)');
-  }
-  return s.replace(/[^\s<>"`,;:()]+@[^\s<>"'`,;:()]+/g, '(an address)').replace(/\b(re|rk|sk|pk)_[A-Za-z0-9_]{6,}/g, '(a key)').slice(0, 300);
-}
-
 /* Kevin's switches and email words, from the Words tab. A missing tab, a missing row or an empty cell means the built-in word.
    Rows are found by name, capitals and punctuation aside. A switch that says anything but its "on" word is off:
    Sign-ups is open only if it says open; a new email opens right away only if it says yes. */
 function words_() {
-  var w = { open: true, instant: false, from: DEF.from, sender: '', senderBad: false, subject: DEF.subject, body: DEF.body };
+  var w = { open: true, instant: false, from: DEF.from, subject: DEF.subject, body: DEF.body };
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(WORDS_TAB);
   if (!sh) return w;
-  var last = Math.min(sh.getLastRow(), WORDS_ROWS);
+  var last = Math.min(sh.getLastRow(), 30);
   if (last < 1) return w;
   var rows = sh.getRange(1, 1, last, 2).getDisplayValues();
   for (var i = 0; i < rows.length; i++) {
-    var name = key_(rows[i][0]);
+    var name = String(rows[i][0]).toLowerCase().replace(/[^a-z]/g, '');
     var text = String(rows[i][1]).replace(/\r\n?/g, '\n').replace(/^\s+|\s+$/g, '');
     if (!text) continue;
     if (name === 'signups') w.open = text.toLowerCase() === 'open';
     else if (name === 'openrightaway') w.instant = text.toLowerCase() === 'yes';
     else if (name === 'fromname') w.from = text.replace(/[\u0000-\u001f\u007f<>"]/g, ' ').slice(0, 60);
-    else if (name === 'fromaddress') { if (email_(text.toLowerCase())) w.sender = text.toLowerCase(); else w.senderBad = true; }   // one plain address, or it is no address at all
     else if (name === 'emailsubject') w.subject = text.replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 150);
     else if (name === 'emailbody') w.body = text.slice(0, 5000);
   }
   return w;
-}
-
-/* A row's name with capitals, spaces and punctuation taken out, so "Sign-ups", "sign ups" and "SIGNUPS:" are one row. */
-function key_(s) {
-  return String(s == null ? '' : s).toLowerCase().replace(/[^a-z]/g, '');
 }
 
 /* ------------------------------------------------------------------
@@ -471,24 +375,6 @@ function buildWords_(ss) {
   return sh;
 }
 
-/* A Words tab made by an earlier version of this file is given any row it lacks, at the bottom.
-   Nothing already on the tab is touched. */
-function addWords_(sh) {
-  var last = sh.getLastRow();
-  var have = {};
-  if (last >= 1) {
-    var names = sh.getRange(1, 1, last, 1).getDisplayValues();
-    for (var i = 0; i < names.length; i++) have[key_(names[i][0])] = true;
-  }
-  for (var j = 0; j < WORDS.length; j++) {
-    if (have[key_(WORDS[j][0])]) continue;
-    last++;
-    if (last > sh.getMaxRows()) sh.insertRowsAfter(sh.getMaxRows(), last - sh.getMaxRows());   // a tab trimmed to its last row has no room: make some
-    sh.getRange(last, 1, 1, 3).setNumberFormat('@').setValues([WORDS[j]]).setWrap(true).setVerticalAlignment('top');
-    sh.getRange(last, 1).setFontWeight('bold');
-  }
-}
-
 function find_(sh, code) {
   var last = sh.getLastRow();
   if (last < 2) return 0;
@@ -586,8 +472,7 @@ function setup() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = sheet_();
   mailedHead_(sh);
-  var words = ss.getSheetByName(WORDS_TAB);
-  if (!words) buildWords_(ss); else addWords_(words);
+  if (!ss.getSheetByName(WORDS_TAB)) buildWords_(ss);
   var left;
   try {
     left = MailApp.getRemainingDailyQuota();
@@ -603,61 +488,7 @@ function setup() {
   console.log('SELF-TEST PASSED. The Trackers tab is ready.');
   var w = words_();
   console.log('Sign-ups: ' + (w.open ? 'open' : 'closed') + '. A new email ' + (w.instant ? 'opens its tracker at once, and is emailed its link' : 'is emailed its link, and shown it nowhere else') + '.');
-  console.log('Email subject: ' + w.subject);
-  var key = serviceKey_();
-  if (key && w.senderBad) {
-    console.log('Sender: NOBODY. ' + SERVICE_KEY + ' is in Script Properties, but the From address on the Words tab is not one plain address, so no link email is being sent. Put it right, or empty that cell to have Google send.');
-  } else if (key && w.sender) {
-    console.log('Sender: the sending service, as "' + fromLine_(w) + '". Its key is in place' + (/^re_/.test(key) ? '' : ', but does not start with re_ as its keys do: check it was pasted whole') + '. The first real sign-up is what proves it.');
-    console.log('Sent through the service today by this script: ' + sentToday_() + '.');
-  } else if (w.sender) {
-    console.log('Sender: still Google, from this account (' + left + ' more today). The From address is set (' + w.sender + '), but there is no ' + SERVICE_KEY + ' in Script Properties yet.');
-  } else if (key) {
-    console.log('Sender: still Google, from this account (' + left + ' more today). ' + SERVICE_KEY + ' is in Script Properties, but the From address on the Words tab is empty.');
-  } else {
-    console.log('Sender: Google, from this account. ' + left + ' more can be sent today.' + (w.senderBad ? ' (The From address on the Words tab is not one plain address. It changes nothing while there is no ' + SERVICE_KEY + '.)' : ''));
-  }
-}
-
-/* Run after the sending service's key is pasted into Script Properties, or at any time. Sends no email, and never shows the key.
-   It asks the service one question that no email rides on: do you know this key? */
-function checkSender() {
-  var w = words_();
-  var key = serviceKey_();
-  console.log(w.sender ? 'From address: ' + w.sender : (w.senderBad ? 'From address: what is on the Words tab is not one plain address.' : 'From address: none yet on the Words tab.'));
-  var res, status = 0, j = null;
-  try {
-    var ask = { method: 'get', muteHttpExceptions: true, timeoutSeconds: SERVICE_WAIT };
-    if (key) ask.headers = { Authorization: 'Bearer ' + key };
-    res = UrlFetchApp.fetch(SERVICE_CHECK, ask);
-    status = res.getResponseCode();
-    try { j = JSON.parse(res.getContentText()); } catch (err0) { j = null; }
-  } catch (err) {
-    console.log('The service could not be reached from this script: ' + scrub_(err && err.message ? err.message : err, [key]));
-    return;
-  }
-  var name = j && j.name ? String(j.name) : '', message = j && j.message ? String(j.message) : '';
-  if (!key) {
-    console.log(SERVICE_KEY + ': not set.');
-    console.log(name === 'missing_api_key' ? 'The service can be reached from this script.' : 'The service did not answer as expected: ' + status + '. ' + scrub_(said_(res), [key]));
-  } else if (status === 200 && j && Array.isArray(j.data)) {
-    console.log(SERVICE_KEY + ': the service knows this key, and it works. But it is a FULL ACCESS key. A key that can only send is safer: make one with Sending access, put it here instead, and delete this one in Resend.');
-    if (w.sender) {
-      var host = w.sender.split('@')[1], found = '';
-      for (var i = 0; i < j.data.length; i++) if (j.data[i] && String(j.data[i].name).toLowerCase() === host) found = String(j.data[i].status);
-      if (!found) console.log(host + ': not among the domains on this Resend account.');
-      else if (found === 'verified') console.log(host + ': verified with the service.');
-      else console.log(host + ': NOT verified with the service yet (' + scrub_(found).slice(0, 40) + ').');
-    }
-  } else if (name === 'restricted_api_key' && /send/i.test(message) && !/active|suspend/i.test(message)) {
-    console.log(SERVICE_KEY + ': the service knows this key, and it can only send. That is the right kind.');
-    console.log('A key of this kind cannot be asked about the domain. The Domains page in Resend shows whether it is verified.');
-  } else {
-    console.log(SERVICE_KEY + ': the service did NOT accept this key. It answered ' + status + '. ' + scrub_(said_(res), [key]));
-    console.log('Check it was pasted whole, with nothing before or after it. If it was, make a new key in Resend and put that here.');
-  }
-  if (key && w.senderBad) console.log('As things stand, NO link email is sent: put the From address right, or empty that cell to have Google send.');
-  else console.log(key && w.sender ? 'As things stand, the sending service is asked to send the link email.' : 'As things stand, Google sends the link email.');
+  console.log('Email: ' + left + ' more can be sent today. Subject: ' + w.subject);
 }
 
 /* Only if the tracker is ever sold: run after pasting a Stripe key into Script Properties. Says whether Stripe accepts it. */
@@ -735,10 +566,6 @@ function selfTest_(sh) {
     }
     var w = words_();
     check('the email has a subject, a body and a sender name', !!w.subject && !!w.body && !!w.from && !/[\r\n]/.test(w.subject + w.from), JSON.stringify(w).slice(0, 100));
-    check('the From address is one plain address, or not set', w.sender === '' || email_(w.sender), w.sender);
-    check('the From line is a name and one address', w.sender === '' || /^[^<>"]* <[^<>\s]+@[^<>\s]+>$/.test(fromLine_(w)) || fromLine_(w) === w.sender, w.sender ? fromLine_(w) : '');
-    check('a line for the log has addresses and keys taken out', scrub_('to someone@example.com with re_AbCdEf123456') === 'to (an address) with (a key)', scrub_('to someone@example.com with re_AbCdEf123456'));
-    check('and the very address and the very key, however they are written', scrub_('Bearerre_made_up_0000 for j.o\'neil@example.com', ['j.o\'neil@example.com', 'Bearerre_made_up_0000']) === '(a key) for (an address)', scrub_('Bearerre_made_up_0000 for j.o\'neil@example.com', ['j.o\'neil@example.com', 'Bearerre_made_up_0000']));
     var fresh = newCode_(sh);
     check('a new code is the right shape and no one has it', CODE_RE.test(fresh) && fresh.indexOf('kw_') === 0 && find_(sh, fresh) === 0, fresh.length);
   } catch (err) {

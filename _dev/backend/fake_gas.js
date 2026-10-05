@@ -13,6 +13,9 @@ function makeWorld(file) {
     cache: {},             // key -> {v, until}
     hazards: [],           // every write Sheets would have treated as a formula
     stripe: { sessions: {}, keys: { rk_test_good: 'test', rk_live_good: 'live' }, calls: [], fail: 0 },
+    send: { keys: { re_goodKey1234567890: 'katawarrior.com' }, sent: [], calls: [], quota: 100, fail: 0, down: false,     // the sending service: key -> the domain it may send as
+            full: {}, dead: {}, domains: [{ name: 'katawarrior.com', status: 'verified' }], checks: [], odd: null },       // full: keys that may do anything; dead: keys it knows but will not use; checks: every question asked of /domains
+    fetched: [],           // every address the script reached out to
     mail: { sent: [], quota: 100, fail: '', denied: false },   // every email sent; how many more today; a fault to raise instead of sending; permission never given
     unflushed: 0,          // times a lock was let go with a write still waiting to reach the Sheet
     wroteInLock: false,
@@ -33,6 +36,7 @@ function makeWorld(file) {
     getMaxColumns() { return this.maxCols; }
     getMaxRows() { return this.maxRows; }
     insertColumnsAfter(col, n) { this.maxCols += n; }
+    insertRowsAfter(row, n) { if (!(row >= 1) || row > this.maxRows || !(n >= 1)) throw new Error('insertRowsAfter out of range ' + [row, n]); this.maxRows += n; }
     getLastRow() { for (let r = this.rows.length; r >= 1; r--) { if ((this.rows[r - 1] || []).some(v => v !== '' && v != null)) return r; } return 0; }
     getLastColumn() { let m = 0; this.rows.forEach(row => (row || []).forEach((v, i) => { if (v !== '' && v != null) m = Math.max(m, i + 1); })); return m; }
     setFrozenRows(n) { this.frozen = n; }
@@ -131,6 +135,76 @@ function makeWorld(file) {
     return reply(200, Object.assign({ id: id, object: 'checkout.session', livemode: mode === 'live', mode: 'payment' }, s));
   }
 
+  /* The sending service, as its documentation describes it: one POST of JSON, a Bearer key, 200 with an id or an error with a name and a message. */
+  const FETCH_OPTIONS = ['method', 'contentType', 'headers', 'payload', 'muteHttpExceptions', 'timeoutSeconds'];
+  const knownOptions = o => { const odd = Object.keys(o).filter(k => FETCH_OPTIONS.indexOf(k) < 0); if (odd.length) throw new Error('fake: UrlFetchApp has no option called ' + odd.join(',')); if ('timeoutSeconds' in o && !(Number.isInteger(o.timeoutSeconds) && o.timeoutSeconds >= 1 && o.timeoutSeconds <= 360)) throw new Error('fake: timeoutSeconds must be a whole number of seconds, 1 to 360'); };
+  function serviceFetch(url, opts) {
+    const o = opts || {};
+    knownOptions(o);
+    const reply = (code, body) => {
+      const text = JSON.stringify(body);
+      if (code >= 400 && !o.muteHttpExceptions) throw new Error('Request failed for https://api.resend.com returned code ' + code + '. Truncated server response: ' + text);
+      return { getResponseCode: () => code, getContentText: () => text };
+    };
+    const bearer = /^Bearer (\S+)$/.exec((o.headers && o.headers.Authorization) || '');     // anything else in that header is no key at all
+    const key = bearer ? bearer[1] : '';
+    let msg = null; try { msg = JSON.parse(o.payload); } catch (e) { msg = null; }
+    world.send.calls.push({ url: url, method: o.method, type: o.contentType, key: key, msg: msg, raw: o.payload, timeout: o.timeoutSeconds, headers: Object.keys(o.headers || {}).sort().join(','), mute: !!o.muteHttpExceptions });
+    if (world.send.down) throw new Error('Address unavailable: ' + url);
+    if (world.send.stall) throw new Error('Request to ' + url + ' timed out after ' + (o.timeoutSeconds || 360) + ' seconds');
+    if (world.send.oddSend) { const [code, text] = world.send.oddSend; if (code >= 400 && !o.muteHttpExceptions) throw new Error('Request failed for https://api.resend.com returned code ' + code + '. Truncated server response: ' + text); return { getResponseCode: () => code, getContentText: () => text }; }   // an answer that is not the service's own
+    if (String(o.method).toLowerCase() !== 'post') return reply(405, { statusCode: 405, name: 'method_not_allowed', message: 'Method is not allowed for the requested path.' });
+    if (!key) return reply(401, { statusCode: 401, name: 'missing_api_key', message: 'Missing API Key' });
+    const domain = world.send.keys[key];
+    if (world.send.dead[key]) return reply(403, { statusCode: 403, name: 'restricted_api_key', message: 'API key is not active' });
+    if (!domain) return reply(401, { statusCode: 401, name: 'validation_error', message: 'API key is invalid' });
+    if (o.contentType !== 'application/json' || !msg || typeof msg !== 'object') return reply(422, { statusCode: 422, name: 'missing_required_field', message: 'The request body is not JSON.' });
+    const extra = Object.keys(msg).filter(k => ['from', 'to', 'subject', 'text'].indexOf(k) < 0);
+    if (extra.length) throw new Error('fake service: unexpected field ' + extra.join(','));              // no cc, no bcc, no html, no reply_to, no attachments
+    const one = a => typeof a === 'string' && /^[^\s,;<>"()\\]+@[^\s,;<>"'()\\@]+$/.test(a);
+    if (!Array.isArray(msg.to) || msg.to.length !== 1 || !one(msg.to[0])) throw new Error('fake service: "to" must be exactly one plain address, got ' + JSON.stringify(msg.to));
+    if (typeof msg.subject !== 'string' || !msg.subject || /[\r\n]/.test(msg.subject)) throw new Error('fake service: a subject that could be bent');
+    if (typeof msg.text !== 'string' || !msg.text) throw new Error('fake service: no text');
+    const m = /^(?:([^<>"\r\n,;:@\\()\[\]]*) <([^<>\s]+)>|([^<>\s]+))$/.exec(String(msg.from));
+    const from = m ? (m[2] || m[3]) : '';
+    if (!m || !one(from)) return reply(422, { statusCode: 422, name: 'validation_error', message: 'Invalid `from` field. The email address needs to follow the `email@example.com` or `Name <email@example.com>` format.' });
+    if (from.split('@')[1] !== domain) return reply(403, { statusCode: 403, name: 'validation_error', message: 'The ' + from.split('@')[1] + ' domain is not verified. Please, add and verify your domain on https://resend.com/domains' });
+    if (world.send.fail) return reply(world.send.fail, { statusCode: world.send.fail, name: world.send.fail === 429 ? 'rate_limit_exceeded' : 'application_error', message: 'Could not deliver to ' + msg.to[0] + ' using key ' + key });   // a message that says too much, to test what reaches the log
+    if (world.send.quota < 1) return reply(429, { statusCode: 429, name: 'daily_quota_exceeded', message: 'You have reached your daily email sending quota.' });
+    world.send.quota--;
+    world.send.sent.push({ from: msg.from, fromAddress: from, to: msg.to[0], subject: msg.subject, body: msg.text, at: clock() });
+    return reply(world.send.okCode || 200, { id: require('crypto').randomUUID() });
+  }
+  /* GET /domains: the one question checkSender asks. A key that can only send is told so; that is how such a key is known to be good. */
+  function domainsFetch(url, opts) {
+    const o = opts || {};
+    knownOptions(o);
+    const reply = (code, body) => {
+      const text = typeof body === 'string' ? body : JSON.stringify(body);
+      if (code >= 400 && !o.muteHttpExceptions) throw new Error('Request failed for https://api.resend.com returned code ' + code + '. Truncated server response: ' + text);
+      return { getResponseCode: () => code, getContentText: () => text };
+    };
+    const bearer = /^Bearer (\S+)$/.exec((o.headers && o.headers.Authorization) || '');     // anything else in that header is no key at all
+    const key = bearer ? bearer[1] : '';
+    world.send.checks.push({ url: url, method: String(o.method || 'get').toLowerCase(), key: key, timeout: o.timeoutSeconds, headers: Object.keys(o.headers || {}).sort().join(','), mute: !!o.muteHttpExceptions, payload: o.payload === undefined ? null : o.payload });
+    if (world.send.down) throw new Error('Address unavailable: ' + url);
+    if (world.send.odd) return reply(world.send.odd[0], world.send.odd[1]);
+    if (String(o.method || 'get').toLowerCase() !== 'get') throw new Error('fake service: checkSender must only ever ask, never change anything');
+    if (!key) return reply(401, { statusCode: 401, message: 'Missing API Key', name: 'missing_api_key' });
+    if (world.send.dead[key]) return reply(403, { statusCode: 403, message: 'API key is not active', name: 'restricted_api_key' });
+    if (world.send.full[key]) return reply(200, { object: 'list', has_more: false, data: world.send.domains.map((d, i) => ({ id: 'd91cd9bd-1176-453e-8fc1-35364d38020' + i, name: d.name, status: d.status, created_at: '2026-10-05 18:00:00.000000+00', region: 'us-east-1', open_tracking: false, click_tracking: false, capabilities: { sending: 'enabled', receiving: 'disabled' } })) });
+    if (world.send.keys[key]) return reply(401, { statusCode: 401, message: 'This API key is restricted to only send emails', name: 'restricted_api_key' });
+    return reply(400, { statusCode: 400, message: 'API key is invalid', name: 'validation_error' });
+  }
+
+  function fetchAny(url, opts) {
+    world.fetched.push(String(url).split('/').slice(0, 3).join('/'));
+    if (/^https:\/\/api\.stripe\.com\//.test(url)) return stripeFetch(url, opts);
+    if (url === 'https://api.resend.com/emails') return serviceFetch(url, opts);
+    if (url === 'https://api.resend.com/domains') return domainsFetch(url, opts);
+    throw new Error('fake: the script reached out to somewhere it should not: ' + url);
+  }
+
   const sandbox = {
     SpreadsheetApp: {
       getActiveSpreadsheet: () => ss,
@@ -144,7 +218,10 @@ function makeWorld(file) {
       waitLock() { world.locks++; world.lockWaits++; world.wroteInLock = false; if (world.locks > 1) throw new Error('lock taken twice'); },
       releaseLock() { if (world.wroteInLock) world.unflushed++; world.wroteInLock = false; world.locks--; }     // Google: flush before letting the lock go
     }) },
-    PropertiesService: { getScriptProperties: () => ({ getProperty: k => (k in world.props ? world.props[k] : null), setProperty: (k, v) => { world.props[k] = v; } }) },
+    PropertiesService: { getScriptProperties: () => ({
+      getProperty(k) { if (world.propsDown) throw new Error('Service error: Properties'); return (k in world.props ? world.props[k] : null); },
+      setProperty(k, v) { if (world.propsDown || world.propsStuck) throw new Error('Service error: Properties'); if (typeof v !== 'string') throw new Error('fake: a property value must be text'); world.props[k] = v; }
+    }) },
     CacheService: { getScriptCache: () => ({
       get(k) { if (k.length > 250) throw new Error('cache key too long'); const e = world.cache[k]; return (e && e.until > clock()) ? e.v : null; },
       put(k, v, ttl) {
@@ -154,7 +231,7 @@ function makeWorld(file) {
         world.cache[k] = { v: String(v), until: clock() + (ttl || 600) * 1000 };
       }
     }) },
-    UrlFetchApp: { fetch: stripeFetch },
+    UrlFetchApp: { fetch: fetchAny },
     MailApp: {
       getRemainingDailyQuota() { if (world.mail.denied) throw new Error('You do not have permission to call MailApp.getRemainingDailyQuota. Required permissions: https://www.googleapis.com/auth/script.send_mail'); return world.mail.quota; },
       sendEmail(m) {
@@ -180,8 +257,10 @@ function makeWorld(file) {
   const src = fs.readFileSync(file || path.join(__dirname, 'Code.gs'), 'utf8');      // a test may run an older copy of the script
   vm.runInContext(src, sandbox, { filename: 'Code.gs' });
   world.gs = sandbox;
-  world.post = body => JSON.parse(sandbox.doPost({ postData: { contents: typeof body === 'string' ? body : JSON.stringify(body), type: 'text/plain' } }).getContent());
-  world.get = () => JSON.parse(sandbox.doGet({ parameter: {} }).getContent());
+  world.answers = [];        // every answer the web address gave, word for word
+  const answer = out => { const text = out.getContent(); world.answers.push(text); return JSON.parse(text); };
+  world.post = body => answer(sandbox.doPost({ postData: { contents: typeof body === 'string' ? body : JSON.stringify(body), type: 'text/plain' } }));
+  world.get = () => answer(sandbox.doGet({ parameter: {} }));
   world.tab = () => world.sheets.Trackers;
   return world;
 }

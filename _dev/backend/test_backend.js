@@ -27,23 +27,25 @@ const state = (who, n) => JSON.stringify({ v: 1, who: who, lines: [{ id: 'l1', n
   check('every lock taken was released', w.locks === 0 && w.lockWaits > 0, [w.locks, w.lockWaits]);
   check('setup adds the Link emailed column after the hidden data', t.rows[0][20] === 'Link emailed', t.rows[0][20]);
   const words = w.sheets.Words;
-  check('setup makes the Words tab: the two switches and the three email words', !!words && words.rows.map(r => r[0]).join('|') === 'Sign-ups|Open right away|From name|Email subject|Email body' && words.rows.map(r => r[1]).join('|') === 'open|no|Kata Warrior|Kata Warrior Tracker|Build your own kata challenge and track it', words && words.rows.map(r => r.slice(0, 2)));
+  check('setup makes the Words tab: the two switches, who it comes from, and the email itself', !!words && words.rows.map(r => r[0]).join('|') === 'Sign-ups|Open right away|From name|From address|Email subject|Email body' && words.rows.map(r => r[1]).join('|') === 'open|no|Kata Warrior||Kata Warrior Tracker|Build your own kata challenge and track it', words && words.rows.map(r => r.slice(0, 2)));
   check('every Words row says what it does', words.rows.every(r => typeof r[2] === 'string' && r[2].length > 20));
-  check('setup says where sign-ups and email stand', w.logs.some(l => /^Sign-ups: open\. A new email is emailed its link, and shown it nowhere else\.$/.test(l)) && w.logs.some(l => /^Email: 100 more can be sent today\. Subject: Kata Warrior Tracker$/.test(l)), w.logs);
+  check('setup says where sign-ups and email stand', w.logs.some(l => /^Sign-ups: open\. A new email is emailed its link, and shown it nowhere else\.$/.test(l)) && w.logs.some(l => l === 'Email subject: Kata Warrior Tracker') && w.logs.some(l => l === 'Sender: Google, from this account. 100 more can be sent today.'), w.logs);
   check('the two switches are drop-downs that take nothing else', JSON.stringify(w.validations['Words!1:2'] && w.validations['Words!1:2'].list) === '["open","closed"]' && JSON.stringify(w.validations['Words!2:2'] && w.validations['Words!2:2'].list) === '["no","yes"]' && w.validations['Words!1:2'].allowInvalid === false && w.validations['Words!2:2'].allowInvalid === false && w.errors.length === 0, [w.validations, w.errors]);
   check('no lock was let go with a write still waiting', w.unflushed === 0, w.unflushed);
   check('setup sends no email', w.mail.sent.length === 0 && w.mail.quota === 100, w.mail);
-  words.rows[4][1] = 'My own words';
+  words.rows[5][1] = 'My own words'; words.rows[3][1] = 'kevin@katawarrior.com';
+  w.logs.length = 0;
   w.gs.setup();
   check('running setup twice is harmless', w.tab().getLastRow() === 1 && Object.keys(w.sheets).length === 2 && w.hazards.length === 0);
-  check('and never writes over words Kevin has changed', w.sheets.Words.rows[4][1] === 'My own words' && w.sheets.Words.rows.length === 5, w.sheets.Words.rows[4]);
+  check('and never writes over words Kevin has changed', w.sheets.Words.rows[5][1] === 'My own words' && w.sheets.Words.rows[3][1] === 'kevin@katawarrior.com' && w.sheets.Words.rows.length === 6, w.sheets.Words.rows);
+  check('with a From address but no key, setup says Google is still the sender, and why', w.logs.some(l => l === 'Sender: still Google, from this account (100 more today). The From address is set (kevin@katawarrior.com), but there is no RESEND_KEY in Script Properties yet.'), w.logs);
 }
 
 /* 2. the address itself */
 {
   const w = makeWorld();
   const g = w.get();
-  check('opening the address answers ok, and says which version it is', g.ok === true && g.service === 'kata-warrior-tracker' && g.v === 2, g);
+  check('opening the address answers ok, and says which version it is', g.ok === true && g.service === 'kata-warrior-tracker' && g.v === 3, g);
   check('an unknown request is refused', w.post({ a: 'nope' }).error === 'request');
   check('a body that is not JSON is refused without crashing', w.post('<<<').ok === false);
   check('a body far too large is refused unread', w.post('{"a":"save","k":"' + 'x'.repeat(1000001) + '"}').error === 'size');
@@ -603,7 +605,7 @@ const rightAway = w => { if (!w.sheets.Words) w.gs.setup(); setWord(w, 'Open rig
     w.mail.denied = false;
     threw = null; try { w.gs.setup(); } catch (e) { threw = e.message; }
     check('setup runs clean on the Sheet as it stands', threw === null && w.logs.some(l => /SELF-TEST PASSED/.test(l)), [threw, w.logs]);
-    check('it adds the Link emailed column and the Words tab', w.tab().rows[0][20] === 'Link emailed' && !!w.sheets.Words && w.sheets.Words.rows.length === 5);
+    check('it adds the Link emailed column and the Words tab', w.tab().rows[0][20] === 'Link emailed' && !!w.sheets.Words && w.sheets.Words.rows.length === 6);
     check('the old headings are untouched', w.tab().rows[0].slice(0, 11).join('|') === 'Code|Email|Name|Logged|Of|Lines|Started|Last saved|Saves|Link|Data');
     const row = w.tab().rows.find(r => r[0] === mine);
     check('Kevin\'s test row is untouched', !!row && row[1] === "test row: Kevin's first look" && row[2] === 'Kevin' && row[3] === 240 && row[8] === 1 && w.tab().getLastRow() === 3, row && row.slice(0, 10));
@@ -622,14 +624,362 @@ const rightAway = w => { if (!w.sheets.Words) w.gs.setup(); setWord(w, 'Open rig
   }
 }
 
+/* 17b. the Words tab as it stands today: made by the sign-up version deployed on 5 Oct, five rows, no From address */
+{
+  const path = require('path'), fs = require('fs');
+  const v2 = path.join(__dirname, '..', 'backup-v2-deployed', 'Code.gs');
+  if (!fs.existsSync(v2)) { check('(the deployed sign-up version is on hand to test against)', false, v2); }
+  else {
+    const old = makeWorld(v2); old.now = T0;
+    old.gs.setup();
+    old.post({ a: 'join', e: 'early@example.com' });
+    const W = old.sheets.Words;
+    check('(the Words tab made by the deployed version has five rows and no From address)', W.rows.length === 5 && !W.rows.some(r => r[0] === 'From address') && old.get().v === 2);
+    W.rows.find(r => r[0] === 'Email body')[1] = 'Kevin wrote this.';                 // he has started on his words
+    W.rows.find(r => r[0] === 'Sign-ups')[0] = 'sign ups';                             // and retyped a label
+    const before = JSON.stringify(W.rows);
+    const earlyCode = old.tab().rows[1][0];
+
+    const w = makeWorld(); w.sheets = old.sheets; w.now = T0 + 3600000;
+    const j0 = w.post({ a: 'join', e: 'beforesetup@example.com' });
+    check('before setup is run again, the new script works with the old tab: Google sends, his words kept', JSON.stringify(j0) === SENT && last(w).body.indexOf('Kevin wrote this.') === 0 && w.send.calls.length === 0, last(w));
+    let threw = null; try { w.gs.setup(); } catch (e) { threw = e.message; }
+    check('setup runs clean on it', threw === null && w.logs.some(l => /SELF-TEST PASSED/.test(l)), [threw, w.logs]);
+    check('it adds the one missing row, From address, at the bottom, empty, with its note', W.rows.length === 6 && W.rows[5][0] === 'From address' && W.rows[5][1] === '' && /sending service/.test(W.rows[5][2]), W.rows[5]);
+    check('and touches nothing that was there', JSON.stringify(W.rows.slice(0, 5)) === before, W.rows.slice(0, 5).map(r => r.slice(0, 2)));
+    w.gs.setup();
+    check('run again, it adds nothing more', W.rows.length === 6);
+    check('a man from before still opens his count', w.post({ a: 'load', k: earlyCode }).ok === true);
+    check('his retyped label still closes sign-ups when he says so', (() => { W.rows.find(r => r[0] === 'sign ups')[1] = 'closed'; minutes(w, 1); return w.post({ a: 'join', e: 'late@example.com' }).error === 'closed'; })());
+    check('nothing written could be read as a formula; no lock let go with a write waiting', w.hazards.length === 0 && old.hazards.length === 0 && w.unflushed === 0 && w.locks === 0, [w.hazards, w.unflushed]);
+
+    /* A2: the same old tab, but with its empty rows deleted, so there is no room below the last row */
+    const tight = makeWorld(v2); tight.now = T0; tight.gs.setup();
+    const w2 = makeWorld(); w2.sheets = tight.sheets; w2.now = T0 + 3600000;
+    w2.sheets.Words.maxRows = 5;
+    let threw2 = null; try { w2.gs.setup(); } catch (e) { threw2 = e.message; }
+    check('on a Words tab with no empty row left, setup makes room for the missing row rather than stop', threw2 === null && w2.sheets.Words.rows.length === 6 && w2.sheets.Words.rows[5][0] === 'From address' && w2.sheets.Words.maxRows === 6 && w2.logs.some(l => /SELF-TEST PASSED/.test(l)), [threw2, w2.sheets.Words.maxRows]);
+
+    /* A3: a Words tab Kevin has kept notes on, thirty-one rows deep */
+    const deep = makeWorld(v2); deep.now = T0; deep.gs.setup();
+    const w3 = makeWorld(); w3.sheets = deep.sheets; w3.now = T0 + 3600000;
+    for (let r = 6; r <= 31; r++) w3.sheets.Words.getRange(r, 1).setValue('my note ' + r);
+    w3.gs.setup();
+    const at = w3.sheets.Words.rows.findIndex(r => r[0] === 'From address');
+    check('(the missing row lands below his notes, at row 32)', at === 31, at);
+    w3.sheets.Words.getRange(at + 1, 2).setValue('kevin@katawarrior.com'); w3.props.RESEND_KEY = 're_goodKey1234567890';
+    const j3 = w3.post({ a: 'join', e: 'deep@example.com' });
+    check('a From address that far down the tab is still read', JSON.stringify(j3) === SENT && w3.send.sent.length === 1 && w3.mail.sent.length === 0, [j3, w3.send.sent.length]);
+  }
+}
+
+/* ==================================================================
+   THE SENDING SERVICE: the link email sent as Kevin's own address
+================================================================== */
+const KEY = 're_goodKey1234567890';
+const ME = 'kevin@katawarrior.com';
+const withService = (w, addr) => { if (!w.sheets.Words) w.gs.setup(); setWord(w, 'From address', addr === undefined ? ME : addr); w.props.RESEND_KEY = KEY; };
+const lastSend = w => w.send.sent[w.send.sent.length - 1];
+
+/* 19. who sends */
+{
+  const w = makeWorld(); w.now = T0;
+  w.gs.setup();
+  w.post({ a: 'join', e: 'a1@example.com' });
+  check('with no key and no From address, Google sends, and the service is never called', w.mail.sent.length === 1 && w.send.calls.length === 0 && w.fetched.length === 0, [w.mail.sent.length, w.fetched]);
+
+  setWord(w, 'From address', ME); minutes(w, 1);
+  w.post({ a: 'join', e: 'a2@example.com' });
+  check('a From address alone changes nothing: with no key, Google still sends', w.mail.sent.length === 2 && w.send.calls.length === 0 && last(w).name === 'Kata Warrior');
+
+  setWord(w, 'From address', ''); w.props.RESEND_KEY = KEY; minutes(w, 1);
+  w.post({ a: 'join', e: 'a3@example.com' });
+  check('a key alone changes nothing: with no From address, Google still sends', w.mail.sent.length === 3 && w.send.calls.length === 0);
+  w.logs.length = 0; w.gs.setup();
+  check('and setup says so, without showing the key', w.logs.some(l => l === 'Sender: still Google, from this account (97 more today). RESEND_KEY is in Script Properties, but the From address on the Words tab is empty.') && w.logs.join(' ').indexOf(KEY) < 0, w.logs);
+
+  setWord(w, 'From address', ME); minutes(w, 1);
+  const r = w.post({ a: 'join', e: 'Man.One@Example.com' });
+  const row = rowOf(w, 'man.one@example.com'), c = w.send.calls[0], m = lastSend(w);
+  check('with both in place, the service sends and the page is told the same as ever', JSON.stringify(r) === SENT && w.send.sent.length === 1 && w.send.calls.length === 1, r);
+  check('Google sends nothing, and its allowance for the day is not touched', w.mail.sent.length === 3 && w.mail.quota === 97, [w.mail.sent.length, w.mail.quota]);
+  check('the request is one POST of JSON to the service, the key in its header and nowhere else', c.url === 'https://api.resend.com/emails' && c.method === 'post' && c.type === 'application/json' && c.key === KEY && c.headers === 'Authorization' && c.mute === true && c.timeout === 15 && JSON.stringify(c.msg).indexOf(KEY) < 0, c);
+  check('it carries four things: who from, the one man it is to, the subject, the words', Object.keys(c.msg).sort().join() === 'from,subject,text,to' && JSON.stringify(c.msg.to) === '["man.one@example.com"]', c.msg);
+  check('it comes from Kevin\'s own address under the Kata Warrior name', m.from === 'Kata Warrior <' + ME + '>' && m.fromAddress === ME, m.from);
+  check('its words are the same email as before: the line, then his link', m.subject === 'Kata Warrior Tracker' && m.body === 'Build your own kata challenge and track it\n\n' + LINK + row[0] && m.to === 'man.one@example.com', m);
+  check('his row notes when it went, and the script keeps the day\'s tally', row[20] instanceof Date && w.props.MAIL_TALLY === '2026-10-05|1', [row[20], w.props.MAIL_TALLY]);
+  w.logs.length = 0; w.gs.setup();
+  check('setup says who the sender is and how many went today, without showing the key', w.logs.some(l => l === 'Sender: the sending service, as "Kata Warrior <' + ME + '>". Its key is in place. The first real sign-up is what proves it.') && w.logs.some(l => l === 'Sent through the service today by this script: 1.') && w.logs.join(' ').indexOf(KEY) < 0, w.logs);
+  check('setup itself sends nothing, by either road', w.send.sent.length === 1 && w.mail.sent.length === 3);
+  w.props.RESEND_KEY = 'Bearer ' + KEY; w.logs.length = 0; w.gs.setup();
+  check('a key that does not start as the service\'s keys do is pointed out, still without showing it', w.logs.some(l => /^Sender: the sending service, as "Kata Warrior <kevin@katawarrior\.com>"\. Its key is in place, but does not start with re_ as its keys do: check it was pasted whole\. /.test(l)) && w.logs.join(' ').indexOf(KEY) < 0 && w.logs.join(' ').indexOf('goodKey') < 0, w.logs);
+  w.props.RESEND_KEY = KEY;
+
+  minutes(w, 11);
+  const again = w.post({ a: 'join', e: 'man.one@example.com' });
+  check('a man asking for his link again is sent the same link, by the service', JSON.stringify(again) === SENT && w.send.sent.length === 2 && lastSend(w).body === m.body && w.mail.sent.length === 3);
+  w.post({ a: 'join', e: 'man.one@example.com' });
+  check('and not twice within ten minutes', w.send.sent.length === 2);
+
+  setWord(w, 'Email subject', 'Your tracker'); setWord(w, 'Email body', 'Kevin here.\n{link}\nKeep this.'); setWord(w, 'From name', 'Kevin Collins'); minutes(w, 1);
+  w.post({ a: 'join', e: 'words@example.com' });
+  check('his own name, subject and words go out through the service too', lastSend(w).from === 'Kevin Collins <' + ME + '>' && lastSend(w).subject === 'Your tracker' && lastSend(w).body === 'Kevin here.\n' + LINK + rowOf(w, 'words@example.com')[0] + '\nKeep this.', lastSend(w));
+  for (const [name, want] of [['Collins, Kevin', 'Collins Kevin'], ['Kevin <evil@example.com>', 'Kevin evil example com'], ['"Kata" (Warrior); x:y', 'Kata Warrior x y'], ['O\'Brien\\Co [KW]', 'O\'Brien Co KW'], ['Dr. K. Collins', 'Dr K Collins'], ['kevin@katawarrior.com', 'kevin katawarrior com'], ['  ', 'Kata Warrior'], ['José カタ', 'José カタ']]) {
+    setWord(w, 'From name', name); minutes(w, 1);
+    const e = 'n' + w.send.sent.length + '@example.com';
+    const x = w.post({ a: 'join', e: e });
+    check('a From name of ' + JSON.stringify(name) + ' cannot bend the From line', JSON.stringify(x) === SENT && lastSend(w).from === want + ' <' + ME + '>' && lastSend(w).to === e, lastSend(w).from);
+  }
+  {
+    const fancy = 'Kevin\u2019s tracker \u2014 \u201cbuild it\u201d. Caf\u00e9, \u7a7a\u624b, \ud83e\udd4b.\n{link}\nOss.';
+    setWord(w, 'Email body', fancy); setWord(w, 'Email subject', 'Kevin\u2019s \ud83e\udd4b tracker'); setWord(w, 'From name', 'Jos\u00e9 \u30ab\u30bf'); minutes(w, 1);
+    const r = w.post({ a: 'join', e: 'fancy@example.com' });
+    const c = w.send.calls[w.send.calls.length - 1], m = lastSend(w);
+    check('curly quotes, a dash, accents, kanji and an emoji in his words go over the wire as plain ASCII', JSON.stringify(r) === SENT && typeof c.raw === 'string' && /^[\x20-\x7e]+$/.test(c.raw) && c.raw.indexOf('\\u2019') > 0 && c.raw.indexOf('\\ud83e\\udd4b') > 0, c.raw);
+    check('and arrive exactly as he typed them', m.body === fancy.replace('{link}', LINK + rowOf(w, 'fancy@example.com')[0]) && m.subject === 'Kevin\u2019s \ud83e\udd4b tracker' && m.from === 'Jos\u00e9 \u30ab\u30bf <' + ME + '>', m);
+    setWord(w, 'Email subject', ''); setWord(w, 'Email body', '');
+  }
+  setWord(w, 'From name', '<.,;>'); minutes(w, 1);
+  w.post({ a: 'join', e: 'bare@example.com' });
+  check('a From name with nothing usable in it leaves the bare address, not a stray space', lastSend(w).from === ME && lastSend(w).to === 'bare@example.com', JSON.stringify(lastSend(w).from));
+  setWord(w, 'From name', '');
+
+  const JUNK = ['Kevin <kevin@katawarrior.com>', 'kevin@katawarrior.com, other@example.com', 'kevin@katawarrior.com;other@example.com', 'not an address', 'kevin@', 'kevin@katawarrior,com', 'kevin@katawarrior.com.', 'kevin@katawarrior.com\u200b', '=cmd@example.com', 'kevin@katawarrior.com\nBcc: other@example.com', 'x'.repeat(130) + '@katawarrior.com'];
+  for (const junk of JUNK) {
+    setWord(w, 'From address', junk); minutes(w, 1);
+    const before = [w.send.calls.length, w.mail.sent.length, w.errors.length];
+    const e = 'j' + before[2] + '@example.com';
+    const r1 = w.post({ a: 'join', e: e });
+    check('with the key in place, a From address that is not one plain address sends nothing, by either road: ' + JSON.stringify(junk).slice(0, 40), r1.ok === false && r1.error === 'mail' && w.send.calls.length === before[0] && w.mail.sent.length === before[1] && !!rowOf(w, e) && !rowOf(w, e)[20], [r1, w.mail.sent.length - before[1]]);
+    check('and the reason is written down, once, without the address or the key', w.errors.length === before[2] + 1 && w.errors[before[2]] === 'link email not sent: the sending service is switched on, but the From address on the Words tab is not one plain address', w.errors.slice(before[2]));
+  }
+  w.logs.length = 0; w.gs.setup();
+  check('setup says, loudly, that nobody is sending', w.logs.some(l => /^Sender: NOBODY\. RESEND_KEY is in Script Properties, but the From address on the Words tab is not one plain address, so no link email is being sent\./.test(l)) && !w.logs.some(l => /^Sender: (the sending service|still Google|Google)/.test(l)) && w.logs.join(' ').indexOf(KEY) < 0, w.logs.filter(l => /^Sender/.test(l)));
+  w.logs.length = 0; w.gs.checkSender();
+  check('and so does checkSender', w.logs[0] === 'From address: what is on the Words tab is not one plain address.' && w.logs[w.logs.length - 1] === 'As things stand, NO link email is sent: put the From address right, or empty that cell to have Google send.', w.logs);
+  {
+    const fixed = rowOf(w, 'j' + (w.errors.length - 1) + '@example.com');
+    setWord(w, 'From address', ME); minutes(w, 1);
+    const n = w.send.sent.length;
+    const r2 = w.post({ a: 'join', e: fixed[1] });
+    check('put the cell right and the same man, asking again, is sent his link through the service', JSON.stringify(r2) === SENT && w.send.sent.length === n + 1 && lastSend(w).to === fixed[1] && lastSend(w).body.endsWith(LINK + fixed[0]), r2);
+  }
+  delete w.props.RESEND_KEY;
+  for (const junk of JUNK.slice(0, 4)) {
+    setWord(w, 'From address', junk); minutes(w, 1);
+    const before = [w.send.calls.length, w.mail.sent.length, w.errors.length];
+    const r1 = w.post({ a: 'join', e: 'g' + before[1] + '@example.com' });
+    check('with no key, the same cell changes nothing and Google sends: ' + JSON.stringify(junk).slice(0, 40), JSON.stringify(r1) === SENT && w.send.calls.length === before[0] && w.mail.sent.length === before[1] + 1 && w.errors.length === before[2], r1);
+  }
+  w.logs.length = 0; w.gs.setup();
+  check('and setup says Google is the sender, noting the cell', w.logs.some(l => /^Sender: Google, from this account\. \d+ more can be sent today\. \(The From address on the Words tab is not one plain address\. It changes nothing while there is no RESEND_KEY\.\)$/.test(l)), w.logs.filter(l => /^Sender/.test(l)));
+  w.props.RESEND_KEY = KEY;
+  setWord(w, 'From address', '  Kevin@KataWarrior.COM '); minutes(w, 1);
+  w.post({ a: 'join', e: 'caps@example.com' });
+  check('capitals and spaces around the From address do not matter', lastSend(w).fromAddress === ME && lastSend(w).to === 'caps@example.com');
+  w.props.RESEND_KEY = '  ' + KEY + '\n'; minutes(w, 1);
+  w.post({ a: 'join', e: 'pasted@example.com' });
+  check('a key pasted with a space or a line break around it still works', lastSend(w).to === 'pasted@example.com');
+
+  minutes(w, 1);
+  w.post({ a: 'join', e: 'First.Last+Kata@GoogleMail.com' });
+  check('through the service too, the email goes to the address as typed, not to the mailbox it is counted under', lastSend(w).to === 'first.last+kata@googlemail.com' && w.send.calls[w.send.calls.length - 1].msg.to[0] === 'first.last+kata@googlemail.com' && rowOf(w, 'first.last+kata@googlemail.com')[1] === 'first.last+kata@googlemail.com', lastSend(w).to);
+  minutes(w, 1);
+  w.post({ a: 'join', e: 'o\'brien_x%y+z@Example.co.uk' });
+  check('an address with every mark the door allows goes out whole', lastSend(w).to === 'o\'brien_x%y+z@example.co.uk', lastSend(w).to);
+  rightAway(w); setWord(w, 'From address', ME); w.props.RESEND_KEY = KEY; minutes(w, 1);
+  const q = w.post({ a: 'join', e: 'quick@example.com' });
+  check('with Open right away on, a new man is handed his code and the service still emails it', KW.test(q.k) && q.mailed === true && lastSend(w).to === 'quick@example.com' && lastSend(w).body.indexOf(LINK + q.k) >= 0, q);
+  setWord(w, 'Open right away', 'no');
+
+  delete w.props.RESEND_KEY; minutes(w, 1);
+  const n = w.mail.sent.length;
+  w.post({ a: 'join', e: 'back@example.com' });
+  check('take the key away and Google sends again', w.mail.sent.length === n + 1 && last(w).to === 'back@example.com');
+  check('the script reached out to the sending service and nowhere else', w.fetched.every(u => u === 'https://api.resend.com') && w.fetched.length === w.send.calls.length + w.send.checks.length && w.send.checks.length === 1, w.fetched.filter((v, i, a) => a.indexOf(v) === i));
+  const hello = w.get();
+  check('opening the address says three things and no more', w.answers[w.answers.length - 1] === '{"ok":true,"service":"kata-warrior-tracker","v":3}', w.answers[w.answers.length - 1]);
+  w.post({ a: 'load', k: rowOf(w, 'quick@example.com')[0] }); w.post({ a: 'nonsense' }); w.post('not json');
+  check('the key is in no row, no log and no answer the web address ever gave', JSON.stringify(w.tab().rows).indexOf(KEY) < 0 && JSON.stringify(w.sheets.Words.rows).indexOf(KEY) < 0 && w.logs.concat(w.errors).join(' ').indexOf(KEY) < 0 && w.answers.length > 30 && w.answers.join('\n').indexOf(KEY) < 0 && w.answers.join('\n').indexOf('re_') < 0 && w.answers.join('\n').indexOf('katawarrior.com<') < 0 && hello.ok === true, w.answers.filter(a => a.indexOf('re_') >= 0));
+  check('nor is the From address, or any word of the email', w.answers.join('\n').indexOf(ME) < 0 && w.answers.join('\n').indexOf('Kevin here') < 0);
+  check('nothing written could be read as a formula; no lock let go with a write waiting', w.hazards.length === 0 && w.unflushed === 0 && w.locks === 0, [w.hazards, w.unflushed, w.errors]);
+}
+
+/* 20. when the sending service says no */
+{
+  const fresh = () => { const w = makeWorld(); w.now = T0; withService(w); return w; };
+  const cases = [
+    ['a key the service does not know', w => { w.props.RESEND_KEY = 're_wrongKey000000000'; }, /answered 401\. validation_error API key is invalid/],
+    ['a key the service knows but has switched off', w => { w.send.dead[KEY] = true; }, /answered 403\. restricted_api_key API key is not active/],
+    ['a From address at a domain the service has not verified', w => { setWord(w, 'From address', 'kevin@example.org'); }, /answered 403\. validation_error The example\.org domain is not verified/],
+    ['the service\'s day used up', w => { w.send.quota = 0; }, /answered 429\. daily_quota_exceeded/],
+    ['the service in trouble', w => { w.send.fail = 500; }, /answered 500\. application_error Could not deliver to \(an address\) using key \(a key\)/],
+    ['the service unreachable', w => { w.send.down = true; }, /Address unavailable/],
+    ['the service not answering in time', w => { w.send.stall = true; }, /timed out after 15 seconds/],
+    ['something in front of the service turning the script away', w => { w.send.oddSend = [403, 'error code: 1010']; }, /answered 403\. error code: 1010$/],
+    ['an error page instead of an answer', w => { w.send.oddSend = [502, '<html><head><title>502 Bad Gateway</title></head><body><h1>Bad Gateway</h1> for unlucky@example.com</body></html>']; }, /answered 502\. 502 Bad Gateway Bad Gateway for \(an address\)$/],
+    ['the script\'s settings unreadable', w => { w.propsDown = true; }, /Service error: Properties/]
+  ];
+  for (const [what, breakIt, logged] of cases) {
+    const w = fresh(); breakIt(w);
+    const r = w.post({ a: 'join', e: 'unlucky@example.com' });
+    check(what + ': the page is told it did not send', r.ok === false && r.error === 'mail' && JSON.stringify(r).indexOf('kw_') < 0, r);
+    check(what + ': Google is not used instead', w.mail.sent.length === 0 && w.send.sent.length === 0, [w.mail.sent.length, w.send.sent.length]);
+    check(what + ': his row is kept, with no emailed date', (() => { w.propsDown = false; const x = rowOf(w, 'unlucky@example.com'); return !!x && !x[20]; })());
+    check(what + ': the reason is written down, with no address and no key in it', w.errors.length === 1 && /^link email not sent: /.test(w.errors[0]) && logged.test(w.errors[0]) && w.errors[0].indexOf('unlucky') < 0 && w.errors[0].indexOf('re_') < 0 && w.errors[0].indexOf('@') < 0, w.errors);
+    check(what + ': nothing is counted as sent', !w.props.MAIL_TALLY, w.props.MAIL_TALLY);
+    w.props.RESEND_KEY = KEY; setWord(w, 'From address', ME); w.send.quota = 100; w.send.fail = 0; w.send.down = false; w.send.stall = false; w.send.oddSend = null; w.send.dead = {}; w.propsDown = false;
+    const again = w.post({ a: 'join', e: 'unlucky@example.com' });
+    check(what + ': once it is put right, the same man asking again is sent his link, with no wait', JSON.stringify(again) === SENT && w.send.sent.length === 1 && lastSend(w).to === 'unlucky@example.com' && lastSend(w).body.endsWith(LINK + rowOf(w, 'unlucky@example.com')[0]), again);
+  }
+  {
+    const w = fresh(); w.mail.quota = 0;
+    const r = w.post({ a: 'join', e: 'spent@example.com' });
+    check('Google\'s own allowance being spent does not hold the service back', JSON.stringify(r) === SENT && w.send.sent.length === 1 && w.mail.sent.length === 0 && w.errors.length === 0, [r, w.errors]);
+  }
+  {
+    const w = fresh(); w.mail.denied = true;
+    const r = w.post({ a: 'join', e: 'denied@example.com' });
+    check('nor does Google refusing to say what is left', JSON.stringify(r) === SENT && w.send.sent.length === 1, [r, w.errors]);
+  }
+  {
+    const w = fresh(); w.send.okCode = 202;
+    const r = w.post({ a: 'join', e: 'taken@example.com' });
+    check('any answer in the 200s from the service means the email was taken', JSON.stringify(r) === SENT && w.send.sent.length === 1 && w.props.MAIL_TALLY === '2026-10-05|1' && rowOf(w, 'taken@example.com')[20] instanceof Date && w.errors.length === 0, [r, w.errors]);
+  }
+  {
+    const w = fresh(); w.propsStuck = true;
+    const r = w.post({ a: 'join', e: 'uncounted@example.com' });
+    check('if the day\'s tally cannot be written, an email that went is still an email that went', JSON.stringify(r) === SENT && w.send.sent.length === 1 && !w.props.MAIL_TALLY && rowOf(w, 'uncounted@example.com')[20] instanceof Date, [r, w.errors]);
+    const twice = w.post({ a: 'join', e: 'uncounted@example.com' });
+    check('and asking again straight away does not send it a second time', JSON.stringify(twice) === SENT && w.send.sent.length === 1 && w.send.calls.length === 1, twice);
+  }
+  {
+    /* B3: a man who has had his link before, on a day the service will take no more */
+    const w = fresh();
+    w.post({ a: 'join', e: 'oldhand@example.com' });
+    check('(a man is sent his link through the service)', w.send.sent.length === 1 && rowOf(w, 'oldhand@example.com')[20] instanceof Date);
+    minutes(w, 11); w.send.quota = 0;
+    let r = w.post({ a: 'join', e: 'oldhand@example.com' });
+    check('a returning man on a day the service will take no more is told it did not send; Google is not used for him either', r.ok === false && r.error === 'mail' && w.mail.sent.length === 0 && w.send.sent.length === 1 && /answered 429\. daily_quota_exceeded/.test(w.errors[0]), [r, w.mail.sent.length, w.errors]);
+    w.send.quota = 100; w.props.MAIL_TALLY = '2026-10-05|100';
+    r = w.post({ a: 'join', e: 'oldhand@example.com' });
+    check('by the script\'s own count the day is spent, yet a returning man is still tried through the service, never through Google', JSON.stringify(r) === SENT && w.send.sent.length === 2 && w.mail.sent.length === 0 && w.props.MAIL_TALLY === '2026-10-05|101', [r, w.props.MAIL_TALLY]);
+  }
+  {
+    /* A6: with nothing in the From address cell, the script's settings are not read at all: exactly as before the service existed */
+    const w = makeWorld(); w.now = T0; w.gs.setup(); w.propsDown = true;
+    const r = w.post({ a: 'join', e: 'asbefore@example.com' });
+    check('with no From address, the script\'s settings being unreadable does not matter: Google sends, as it always did', JSON.stringify(r) === SENT && w.mail.sent.length === 1 && w.send.calls.length === 0 && w.errors.length === 0, [r, w.errors]);
+  }
+  {
+    /* what scrub_ takes out of a line */
+    const w = makeWorld(); const sc = w.gs.scrub_;
+    const lines = [
+      ['Invalid email: John.O\'Neil+Tag@Example.co.uk', 'Invalid email: (an address)'],
+      ['to a_b%c@x.io, 9lives@example.com; and <UPPER@EXAMPLE.COM>', 'to (an address), (an address); and <(an address)>'],
+      ['key re_made_up_key_0000 here', 'key (a key) here'],
+      ['keys rk_live_AbCdEf123456, sk_test_AbCdEf123456 and pk_AbCdEf123456.', 'keys (a key), (a key) and (a key).'],
+      ['the words more_information, disk_quota_exceeded and restricted_api_key are left alone', 'the words more_information, disk_quota_exceeded and restricted_api_key are left alone'],
+      ['no address, no key', 'no address, no key']
+    ];
+    for (const [given, want] of lines) check('a log line is cleaned: ' + given.slice(0, 44), sc(given) === want, sc(given));
+    check('the very address and the very key go, wherever they sit and however odd they look', sc('xBearerre_made_up_0000x and "j.o\'neil@example.com"', ['j.o\'neil@example.com', 'Bearerre_made_up_0000']) === 'x(a key)x and "(an address)"', sc('xBearerre_made_up_0000x and "j.o\'neil@example.com"', ['j.o\'neil@example.com', 'Bearerre_made_up_0000']));
+    check('nothing short is taken for a key, and an empty or missing one is skipped', sc('a b c abc', ['', null, undefined, 'abc']) === 'a b c abc' && sc('x'.repeat(400)).length === 300);
+  }
+  {
+    /* the service echoing the man's own address, apostrophe and all, or the key */
+    const w = fresh(); w.send.fail = 500;
+    w.post({ a: 'join', e: 'j.o\'neil@example.com' });
+    check('an address with an apostrophe in it is still kept out of the log', w.errors.length === 1 && /Could not deliver to \(an address\) using key \(a key\)$/.test(w.errors[0]) && w.errors[0].indexOf('neil') < 0 && w.errors[0].indexOf("j.o") < 0, w.errors);
+    const w2 = fresh(); w2.props.RESEND_KEY = 'Bearer ' + KEY; w2.send.oddSend = [401, JSON.stringify({ statusCode: 401, name: 'validation_error', message: 'Unknown credential Bearer' + KEY + ' for late@example.com' })];
+    w2.post({ a: 'join', e: 'late@example.com' });
+    check('a badly pasted key, echoed back whole, is still kept out of the log', w2.errors.length === 1 && w2.errors[0] === 'link email not sent: the sending service answered 401. validation_error Unknown credential (a key) for (an address)' && w2.errors[0].indexOf('goodKey') < 0, w2.errors);
+  }
+  const w = fresh(); rightAway(w); w.send.fail = 500;
+  const q = w.post({ a: 'join', e: 'quick@example.com' });
+  check('with Open right away on, a new man still gets in when the service fails, and nothing claims an email went', KW.test(q.k) && q.mailed === false && w.mail.sent.length === 0 && w.send.sent.length === 0, q);
+}
+
+/* 21. the service's hundred a day, twenty of them kept back */
+{
+  const w = makeWorld(); w.now = Date.UTC(2026, 9, 5, 8, 0, 0); withService(w);
+  w.post({ a: 'join', e: 'oldhand@example.com' });
+  let sent = 1, held = 0;
+  for (let i = 0; i < 100; i++) { if (i % 10 === 0) minutes(w, 11); const x = w.post({ a: 'join', e: 'day' + i + '@example.com' }); if (x.sent) sent++; else if (x.error === 'mail') held++; }
+  check('through the service, eighty emails go to new men in a day; the rest have a row and are told it did not send', sent === 80 && held === 21 && w.send.sent.length === 80 && w.send.calls.length === 80 && w.props.MAIL_TALLY === '2026-10-05|80', [sent, held, w.send.calls.length, w.props.MAIL_TALLY]);
+  check('a held man is not sent by asking twice', w.post({ a: 'join', e: 'day99@example.com' }).error === 'mail' && w.send.calls.length === 80);
+  minutes(w, 11);
+  check('a man who was sent his link before still gets it from what was kept back', JSON.stringify(w.post({ a: 'join', e: 'oldhand@example.com' })) === SENT && lastSend(w).to === 'oldhand@example.com' && w.props.MAIL_TALLY === '2026-10-05|81');
+  check('Google was never used, and nothing but the limit was written down', w.mail.sent.length === 0 && w.errors.length === 22 && w.errors.every(e => /kept for men asking again/.test(e)), [w.mail.sent.length, w.errors.length]);
+  w.now = Date.UTC(2026, 9, 6, 0, 5, 0); w.send.quota = 100;
+  check('the next day by the world clock, the held man gets his', JSON.stringify(w.post({ a: 'join', e: 'day99@example.com' })) === SENT && lastSend(w).to === 'day99@example.com' && w.props.MAIL_TALLY === '2026-10-06|1', w.props.MAIL_TALLY);
+  w.props.MAIL_TALLY = 'nonsense';
+  minutes(w, 1);
+  check('a tally someone has scribbled on is treated as none', JSON.stringify(w.post({ a: 'join', e: 'after@example.com' })) === SENT && w.props.MAIL_TALLY === '2026-10-06|1');
+  check('every lock taken was released, none with a write waiting', w.locks === 0 && w.unflushed === 0);
+}
+
+/* 22. checkSender: run by hand, asks the service whether it knows the key, sends nothing */
+{
+  const FULL = 're_fullKey12345678901';
+  const run = (prep) => { const w = makeWorld(); w.now = T0; w.gs.setup(); setWord(w, 'From address', ME); if (prep) prep(w); w.logs.length = 0; const before = JSON.stringify([w.tab().rows, w.sheets.Words.rows, w.props]); let threw = null; try { w.gs.checkSender(); } catch (e) { threw = e.message; } return { w, threw, same: JSON.stringify([w.tab().rows, w.sheets.Words.rows, w.props]) === before }; };
+  const quiet = r => r.threw === null && r.same && r.w.mail.sent.length === 0 && r.w.send.sent.length === 0 && r.w.send.calls.length === 0 && r.w.send.checks.length === 1 && r.w.send.checks[0].method === 'get' && r.w.send.checks[0].payload === null && r.w.send.checks[0].mute === true && r.w.send.checks[0].timeout === 15 && r.w.errors.length === 0;
+  const noKey = r => r.w.logs.concat(r.w.errors).join('\n').indexOf('re_') < 0;
+
+  let r = run();
+  check('with no key, it says so, and that Google is the sender', r.w.logs.join('\n') === 'From address: ' + ME + '\nRESEND_KEY: not set.\nThe service can be reached from this script.\nAs things stand, Google sends the link email.', r.w.logs);
+  check('it asked one question, with no key in it, sent no email and changed nothing', quiet(r) && r.w.send.checks[0].key === '' && r.w.send.checks[0].headers === '' && r.w.send.checks[0].url === 'https://api.resend.com/domains', r.w.send.checks);
+
+  r = run(w => { w.props.RESEND_KEY = KEY; });
+  check('a key that can only send is called the right kind', r.w.logs.join('\n') === 'From address: ' + ME + '\nRESEND_KEY: the service knows this key, and it can only send. That is the right kind.\nA key of this kind cannot be asked about the domain. The Domains page in Resend shows whether it is verified.\nAs things stand, the sending service is asked to send the link email.', r.w.logs);
+  check('one question, the key in its header only; no email; nothing changed; the key not shown', quiet(r) && r.w.send.checks[0].key === KEY && r.w.send.checks[0].headers === 'Authorization' && noKey(r), r.w.send.checks);
+
+  r = run(w => { w.props.RESEND_KEY = ' ' + KEY + '\n'; });
+  check('the same key pasted with a space and a line break is still known', /knows this key, and it can only send/.test(r.w.logs[1]) && quiet(r));
+
+  r = run(w => { w.props.RESEND_KEY = 're_cutShort123'; });
+  check('a key the service does not know is called that, with what to do', r.w.logs[1] === 'RESEND_KEY: the service did NOT accept this key. It answered 400. validation_error API key is invalid' && /pasted whole/.test(r.w.logs[2]) && quiet(r) && noKey(r), r.w.logs);
+  r = run(w => { w.props.RESEND_KEY = '"' + KEY + '"'; });
+  check('so is a key pasted with quote marks round it', /did NOT accept this key/.test(r.w.logs[1]) && quiet(r), r.w.logs);
+  r = run(w => { w.props.RESEND_KEY = KEY; w.send.dead[KEY] = true; });
+  check('a key the service has switched off is not called good, though its name is "restricted"', r.w.logs[1] === 'RESEND_KEY: the service did NOT accept this key. It answered 403. restricted_api_key API key is not active' && quiet(r) && noKey(r), r.w.logs);
+  r = run(w => { w.props.RESEND_KEY = KEY; w.send.odd = [403, { statusCode: 403, name: 'suspended_api_key', message: 'This API key is suspended. It was used to send to someone@example.com' }]; });
+  check('nor is a suspended one; and what the service says is shown without any address in it', /did NOT accept this key\. It answered 403\. suspended_api_key This API key is suspended\. It was used to send to \(an address\)$/.test(r.w.logs[1]) && quiet(r), r.w.logs);
+
+  r = run(w => { w.props.RESEND_KEY = FULL; w.send.full[FULL] = true; });
+  check('a full access key is said to work, and to be the wrong kind', /^RESEND_KEY: the service knows this key, and it works\. But it is a FULL ACCESS key\./.test(r.w.logs[1]) && /Sending access/.test(r.w.logs[1]) && quiet(r) && noKey(r), r.w.logs);
+  check('and with it the domain can be read: verified', r.w.logs[2] === 'katawarrior.com: verified with the service.', r.w.logs[2]);
+  r = run(w => { w.props.RESEND_KEY = FULL; w.send.full[FULL] = true; w.send.domains = [{ name: 'other.example', status: 'verified' }, { name: 'KataWarrior.com', status: 'pending' }]; });
+  check('or not yet verified', r.w.logs[2] === 'katawarrior.com: NOT verified with the service yet (pending).' && quiet(r), r.w.logs[2]);
+  r = run(w => { w.props.RESEND_KEY = FULL; w.send.full[FULL] = true; w.send.domains = [{ name: 'other.example', status: 'verified' }]; });
+  check('or not on the account at all', r.w.logs[2] === 'katawarrior.com: not among the domains on this Resend account.' && quiet(r), r.w.logs[2]);
+  r = run(w => { w.props.RESEND_KEY = FULL; w.send.full[FULL] = true; w.send.domains = []; setWord(w, 'From address', ''); });
+  check('with no From address it says so, names no domain, and says Google is still the sender', r.w.logs[0] === 'From address: none yet on the Words tab.' && r.w.logs.length === 3 && r.w.logs[2] === 'As things stand, Google sends the link email.' && quiet(r), r.w.logs);
+
+  r = run(w => { w.props.RESEND_KEY = KEY; w.send.down = true; });
+  check('if the service cannot be reached, it says that and stops', r.threw === null && r.w.logs.length === 2 && /^The service could not be reached from this script: Address unavailable/.test(r.w.logs[1]) && r.same && noKey(r), r.w.logs);
+  r = run(w => { w.props.RESEND_KEY = KEY; w.send.odd = [503, '<html>Service Unavailable</html>']; });
+  check('an answer that is not the service\'s own is not taken for a yes', r.w.logs[1] === 'RESEND_KEY: the service did NOT accept this key. It answered 503. Service Unavailable' && quiet(r), r.w.logs);
+  r = run(w => { w.send.odd = [403, 'error code: 1010']; });
+  check('with no key, a blocked request is reported as such, not as reachable', r.w.logs[2] === 'The service did not answer as expected: 403. error code: 1010' && r.w.logs[1] === 'RESEND_KEY: not set.' && quiet(r), r.w.logs);
+  r = run(w => { w.props.RESEND_KEY = 'Bearer ' + KEY; w.send.odd = [401, { statusCode: 401, name: 'validation_error', message: 'Unknown credential Bearer' + KEY }]; });
+  check('if the service ever echoed a badly pasted key back, it still would not be shown', r.w.logs[1] === 'RESEND_KEY: the service did NOT accept this key. It answered 401. validation_error Unknown credential (a key)' && noKey(r) && r.w.logs.join(' ').indexOf('goodKey') < 0 && quiet(r), r.w.logs);
+  r = run(w => { w.props.RESEND_KEY = KEY; w.send.odd = [200, { object: 'list' }]; });
+  check('a 200 with no list of domains is not taken for a yes either', /did NOT accept this key\. It answered 200/.test(r.w.logs[1]) && quiet(r), r.w.logs);
+}
+
 /* 18. the script holds nothing it should not */
 {
   const src = require('fs').readFileSync(require('path').join(__dirname, 'Code.gs'), 'utf8');
   check('no key, token or password is in the script', !/\b(rk|sk|pk)_(test|live)_[A-Za-z0-9]{8,}/.test(src) && !/whsec_|AIza[0-9A-Za-z_-]{20,}|password\s*[:=]/i.test(src));
   check('the script is plain ASCII', /^[\x09\x0a\x20-\x7e]*$/.test(src));
   check('it only ever touches its own spreadsheet', /@OnlyCurrentDoc/.test(src) && !/openById|openByUrl|DriveApp|GmailApp/.test(src));
-  check('it sends email in one place only, to one address, with no cc or bcc', (src.match(/MailApp\.sendEmail/g) || []).length === 1 && !/\b(cc|bcc|htmlBody|replyTo|attachments)\s*:/.test(src));
-  check('no man\'s email address is written to the log', !/console\.(log|error)\([^)]*\b(email|box)\b[^)]*\)/.test(src.replace(/'[^']*'/g, "''")));
+  check('Google\'s mail is used in one place only, to one address, with no cc or bcc', (src.match(/MailApp\.sendEmail/g) || []).length === 1 && !/\b(cc|bcc|htmlBody|replyTo|reply_to|html|attachments|headers\s*:\s*\{[^}]*(Cc|Bcc))\s*:/.test(src.replace(/headers: \{ Authorization[^}]*\}/g, '')));
+  check('the script reaches out to two places only: the sending service and Stripe', JSON.stringify((src.match(/https:\/\/[a-z0-9.\-]+/g) || []).filter((v, i, a) => a.indexOf(v) === i).sort()) === JSON.stringify(['https://api.resend.com', 'https://api.stripe.com', 'https://katawarrior.com']) && (src.match(/UrlFetchApp\.fetch\(/g) || []).length === 4 && (src.match(/SERVICE_CHECK/g) || []).length === 2, (src.match(/https:\/\/[a-z0-9.\-]+/g) || []).filter((v, i, a) => a.indexOf(v) === i));
+  check('the sending service is asked for one thing only: to send, as text, to one address', /payload: ascii_\(JSON\.stringify\(\{ from: fromLine_\(words\), to: \[email\], subject: words\.subject, text: body \}\)\),/.test(src) && (src.match(/SERVICE_URL/g) || []).length === 2);
+  check('the key is read from the script\'s settings and written nowhere', (src.match(/SERVICE_KEY\)/g) || []).length === 1 && !/setProperty\(SERVICE_KEY/.test(src) && !/console\.(log|error)\([^)]*\bkey\b\s*[,)+]/.test(src.replace(/'[^']*'/g, "''").replace(/\/\^re_\/\.test\(key\)/g, '')));
+  check('no man\'s email address is written to the log: the one place it is named in a log line is to have it taken out', !/console\.(log|error)\([^)]*\b(email|box)\b[^)]*\)/.test(src.replace(/'[^']*'/g, "''").replace('err, [email, key]));', 'err));')) && /console\.error\('link email not sent: ' \+ scrub_\(err && err\.message \? err\.message : err, \[email, key\]\)\);/.test(src) && (src.match(/\[email, key\]/g) || []).length === 1);
   check('every place that lets the lock go after writing has sent the write to the Sheet first', (src.match(/SpreadsheetApp\.flush\(\)/g) || []).length >= 5);
 }
 

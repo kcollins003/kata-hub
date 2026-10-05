@@ -299,6 +299,43 @@ try:
         m = mail_to("words@example.com"); r = row_of("words@example.com")
         check("the email carries Kevin's own subject and words, with the link where he put it", len(m) == 1 and bool(r) and m[0]["subject"] == "Your Kata Warrior tracker" and m[0]["body"] == "Kevin here.\nKeep this email.\n" + LINK + r["code"] + "\nOpen it in Safari.", m)
 
+        # ------------------------------------------------------------------ the sending service: the same email, sent as Kevin's own address
+        def sends(): return dump()["sends"]
+        def send_to(email): return [x for x in sends() if x["to"] == email]
+        ctl("/clock", {"add": 61000})
+        ctl("/words", {"name": "From address", "text": "kevin@katawarrior.com"})
+        ctxV, pV = device("phone, From address set, no key yet")
+        pV.goto(PAGE); pV.wait_for_timeout(400)
+        join(pV, "nokey@example.com")
+        check("a From address with no key changes nothing: Google still sends", until(lambda: said(pV) == CHECK, 6) and len(mail_to("nokey@example.com")) == 1 and len(sends()) == 0 and dump()["asked"] == 0, (said(pV), len(sends())))
+        ctl("/props", {"RESEND_KEY": "re_goodKey1234567890"})
+        google = len(mails())
+        pV.goto(PAGE + "?new"); pV.wait_for_timeout(400)
+        join(pV, "Service.Man@Example.com")
+        check("with the key in place the door says the same thing", until(lambda: said(pV) == CHECK, 6) and at_door(pV), said(pV))
+        sv = send_to("service.man@example.com"); r = row_of("service.man@example.com")
+        check("the email went through the service, once, from Kevin's own address, and Google sent nothing", len(sv) == 1 and sv[0]["from"] == "Kata Warrior <kevin@katawarrior.com>" and len(mails()) == google and dump()["asked"] == 1, (sv, len(mails()) - google))
+        check("it is the same email: Kevin's subject and words, the man's own link, and his row notes it went", bool(r) and sv[0]["subject"] == "Your Kata Warrior tracker" and sv[0]["body"] == "Kevin here.\nKeep this email.\n" + LINK + r["code"] + "\nOpen it in Safari." and r["mailed"] is True, sv)
+        check("the page was told nothing but that it was sent: no link, no key, no sender", joins()[-1]["said"] == '{"ok":true,"sent":true}', joins()[-1]["said"])
+        pV.goto(sv[0]["body"].split("\n")[2].replace("https://katawarrior.com/tracker.html", PAGE))
+        check("and the link in it opens his tracker", first_screen(pV) and row(k_of(pV))["email"] == "service.man@example.com")
+        ctl("/service", {"fail": 500})
+        ctxW, pW = device("phone while the service is in trouble")
+        pW.goto(PAGE); pW.wait_for_timeout(400)
+        join(pW, "refused@example.com")
+        check("if the service refuses, the door says it could not load, and Google is not used instead", until(lambda: said(pW) == FAILED, 6) and len(send_to("refused@example.com")) == 0 and len(mail_to("refused@example.com")) == 0 and row_of("refused@example.com")["mailed"] is False, said(pW))
+        noted = [e for e in dump()["errors"] if "sending service" in e]
+        check("the reason is written down, with no address and no key in it", len(noted) == 1 and noted[0].startswith("link email not sent: the sending service answered 500.") and "refused" not in noted[0] and "re_" not in noted[0] and "@" not in noted[0], noted)
+        ctl("/service", {"fail": 0})
+        pW.locator("#jnGo").click()
+        check("once the service is back, the same tap sends it", until(lambda: said(pW) == CHECK, 6) and len(send_to("refused@example.com")) == 1 and row_of("refused@example.com")["mailed"] is True and len(mail_to("refused@example.com")) == 0, said(pW))
+        check("the script reached out to the sending service and nowhere else", set(dump()["fetched"]) == {"https://api.resend.com"}, set(dump()["fetched"]))
+        ctl("/props", {"RESEND_KEY": None}); ctl("/words", {"name": "From address", "text": ""})
+        pW.goto(PAGE + "?new"); pW.wait_for_timeout(400)
+        join(pW, "after@example.com")
+        check("take the key and the address away and Google sends again", until(lambda: said(pW) == CHECK, 6) and len(mail_to("after@example.com")) == 1 and len(send_to("after@example.com")) == 0, said(pW))
+        ctxV.close(); ctxW.close()
+
         ctl("/words", {"name": "Open right away", "text": "yes"})
         ctxI, pI = device("phone with Open right away on")
         pI.goto(PAGE); pI.wait_for_timeout(400)
@@ -375,11 +412,12 @@ try:
         check("every request from the door is a plain-text POST from the site", all(e.get("ct", "").startswith("text/plain") and e.get("origin") == "http://localhost:8790" for e in d["log"] if e["m"] == "POST" and not e.get("down")) and len([e for e in d["log"] if e["m"] == "POST" and not e.get("down")]) > 25, {(e.get("ct"), e.get("origin")) for e in d["log"]})
         check("a sign-up sends his email and nothing else about him", all(e["keys"] == "a,e" for e in d["log"] if e.get("a") == "join") and len([e for e in d["log"] if e.get("a") == "join"]) >= 14, {e["keys"] for e in d["log"] if e.get("a") == "join"})
         alive = {x["email"]: x["code"] for x in d["rows"]}
-        check("every email went to the address typed, with the link of that address's own row and no other", all((mm["to"] not in alive and mm["to"] == "john.smith@example.com") or mm["body"].count(LINK + alive[mm["to"]]) == 1 for mm in d["mail"]) and all(mm["body"].count("kw_") == 1 for mm in d["mail"]) and len(d["mail"]) == 10, [(mm["to"], mm["body"][-12:]) for mm in d["mail"]])
+        check("every email went to the address typed, with the link of that address's own row and no other", all((mm["to"] not in alive and mm["to"] == "john.smith@example.com") or mm["body"].count(LINK + alive[mm["to"]]) == 1 for mm in d["mail"]) and all(mm["body"].count("kw_") == 1 for mm in d["mail"]) and len(d["mail"]) == 12, [(mm["to"], mm["body"][-12:]) for mm in d["mail"]])
+        check("so did the two that went through the sending service", len(d["sends"]) == 2 and [mm["to"] for mm in d["sends"]] == ["service.man@example.com", "refused@example.com"] and all(mm["body"].count(LINK + alive[mm["to"]]) == 1 and mm["body"].count("kw_") == 1 and mm["from"] == "Kata Warrior <kevin@katawarrior.com>" for mm in d["sends"]), [(mm["to"], mm["from"]) for mm in d["sends"]])
         check("only one answer in all of this carried a code: the new man's, with Open right away on", sum(1 for e in d["log"] if "kw_" in (e.get("said") or "") and e.get("a") == "join") == 2 and all(e["e"] in ("quick.man@example.com", "dry@example.com") for e in d["log"] if e.get("a") == "join" and "kw_" in (e.get("said") or "")), [(e.get("e"), e.get("said")) for e in d["log"] if e.get("a") == "join" and "kw_" in (e.get("said") or "")])
         check("one row per email", len({x["email"] for x in d["rows"]}) == len(d["rows"]), [x["email"] for x in d["rows"]])
         check("nothing written to the sheet could be read as a formula", d["hazards"] == [], d["hazards"])
-        check("the only faults the backend noted were the two times the email had run out", len(d["errors"]) == 2 and all("link email not sent" in e for e in d["errors"]) and d["locks"] == 0 and d["unflushed"] == 0, (d["errors"], d["unflushed"]))
+        check("the only faults the backend noted were the two times the email had run out and the once the service refused", len(d["errors"]) == 3 and all("link email not sent" in e for e in d["errors"]) and len([e for e in d["errors"] if "kept for men asking again" in e]) == 2 and d["locks"] == 0 and d["unflushed"] == 0, (d["errors"], d["unflushed"]))
         ctx0.close()
         ctl("/reset", {})
 
@@ -588,7 +626,7 @@ try:
         check("it has a Home Screen name and icon", head["app"] == "Kata Warrior" and icon.status == 200 and icon.headers["Content-Type"] == "image/png", head)
         check("no service worker is registered", regs == 0, regs)
         src = (site / "tracker.html").read_text()
-        check("no key of any kind is in the page", not re.search(r"\b(rk|sk|pk)_(test|live)_", src) and "Bearer" not in src and "password" not in src.lower())
+        check("no key of any kind is in the page", not re.search(r"\b(rk|sk|pk)_(test|live)_", src) and not re.search(r"\bre_[A-Za-z0-9_]{6,}", src) and "resend" not in src.lower() and "Bearer" not in src and "password" not in src.lower())
         api_file = here.parent / "backend" / "API_URL.txt"
         real = here / "out" / "tracker.html"
         if api_file.exists() and real.exists():

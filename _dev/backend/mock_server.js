@@ -86,6 +86,7 @@ http.createServer(async (req, res) => {
   if (url.pathname === '/delete') { const t = tab(); const i = t ? t.rows.findIndex(r => r[0] === body.k) : -1; if (i >= 1) t.deleteRow(i + 1); return send({ deleted: i >= 1 }); }
   if (url.pathname === '/call') { return send(world.post(body)); }                                            // act as another device, straight to the script
   if (url.pathname === '/mail') { Object.assign(world.mail, body); return send({ quota: world.mail.quota, fail: world.mail.fail, sent: world.mail.sent.length }); }
+  if (url.pathname === '/service') { Object.assign(world.send, body); return send({ quota: world.send.quota, fail: world.send.fail, down: world.send.down, sent: world.send.sent.length }); }   // the sending service: make it refuse, or let it work
   if (url.pathname === '/clock') { world.skew += Number(body.add) || 0; return send({ skew: world.skew }); }  // let time pass for the script
   if (url.pathname === '/setup') { world.gs.setup(); return send({ ok: true, tabs: Object.keys(world.sheets) }); }
   if (url.pathname === '/words') {                                                                            // Kevin changes a cell on the Words tab
@@ -96,7 +97,7 @@ http.createServer(async (req, res) => {
   if (url.pathname === '/dump') {
     const t = tab();
     const rows = t ? t.rows.slice(1).map(r => { const data = world.gs.unpack_(Array.from({ length: 20 }, (_, i) => r[i])).data; return { code: r[0], email: r[1], name: r[2], logged: r[3], of: r[4], lines: r[5], started: !!r[6], saved: !!r[7], rev: r[8], link: r[9], data: data, cells: r.slice(10, 20).filter(c => c !== '' && c != null).length, mailed: !!r[20] }; }) : [];
-    return send({ rows: rows, hazards: world.hazards, stripeCalls: world.stripe.calls.length, log: log, errors: world.errors, locks: world.locks, unflushed: world.unflushed, mail: world.mail.sent });
+    return send({ rows: rows, hazards: world.hazards, stripeCalls: world.stripe.calls.length, log: log, errors: world.errors, locks: world.locks, unflushed: world.unflushed, mail: world.mail.sent, sends: world.send.sent, asked: world.send.calls.length, fetched: world.fetched });
   }
   res.writeHead(404); res.end('no');
 }).listen(PORT.ctrl, 'localhost');
