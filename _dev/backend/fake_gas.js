@@ -43,7 +43,11 @@ function makeWorld(file) {
     setColumnWidth(col, w) { if (!(col >= 1) || !(w > 0)) throw new Error('bad column width'); this.widths = this.widths || {}; this.widths[col] = w; return this; }
     hideColumns(col, n) { this.hidden.push([col, n]); }
     deleteRow(n) { if (n < 1 || n > this.rows.length) throw new Error('deleteRow out of range ' + n); this.rows.splice(n - 1, 1); if (world.locks > 0) world.wroteInLock = true; }
-    appendRow(arr) { const r = this.getLastRow() + 1; arr.forEach((v, i) => this._put(r, i + 1, v)); return this; }
+    appendRow(arr) {          // seen on the real Sheet, 5 Oct 2026: a cell appendRow fills loses its plain-text format, as if the value had been typed in
+      const r = this.getLastRow() + 1;
+      arr.forEach((v, i) => { const kept = this.formats[i + 1]; if (v !== '' && v != null) delete this.formats[i + 1]; try { this._put(r, i + 1, v); } finally { if (kept !== undefined) this.formats[i + 1] = kept; } });
+      return this;
+    }
     getRange(row, col, numRows, numCols) {
       numRows = numRows == null ? 1 : numRows; numCols = numCols == null ? 1 : numCols;
       if (!(row >= 1) || !(col >= 1) || !(numRows >= 1) || !(numCols >= 1)) throw new Error('bad range ' + [row, col, numRows, numCols]);

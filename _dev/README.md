@@ -69,10 +69,13 @@ On a paid Resend plan with no daily limit, raise `SERVICE_PER_DAY` in `Code.gs`.
 
 ### Switching the service on
 
+**Done on 5 Oct 2026.** Kept here in case it ever has to be done again.
+
 Order matters. The second of the two settings to land is the live switch.
 
-1. Kevin: a Resend account; the domain added there and showing Verified; a key made with **Sending access**,
-   limited to that domain, pasted into Script Properties as `RESEND_KEY`.
+1. Kevin: a Resend account; the domain added there (Add Domain, then **Auto configure**, which signs in to
+   Cloudflare and adds the records) and showing Verified; a key made with **Sending access**, limited to that
+   domain, pasted into Script Properties as `RESEND_KEY`.
    The From address cell is still empty, so Google is still sending.
 2. Run `checkSender` from the editor. It sends no email and never shows the key. It asks the service one question
    (`GET /domains`) and reports one of:
@@ -85,6 +88,21 @@ Order matters. The second of the two settings to land is the live switch.
    A sending-only key cannot be asked whether the domain is verified, so this sign-up is the real proof.
 
 To switch it off: empty the From address cell, or delete `RESEND_KEY`.
+
+How it went on 5 Oct 2026, by the clock (Pacific): records live at Cloudflare 1:02 PM; key pasted 1:13;
+`checkSender` 1:15, "the service knows this key, and it can only send"; domain Verified 1:16; From address filled
+1:17; Kevin signed up on his iPhone 1:23; the email reached his Gmail inbox as Kata Warrior; the link opened his
+tracker and it saved three times by 1:24. `setup` afterwards: "Sent through the service today by this script: 1."
+
+The records Resend asked for (the form it uses for domains added after August 2026), all at Cloudflare, DNS only:
+
+    TXT    resend._domainkey    p=...            (the signing key)
+    CNAME  send                 send.forge.rmta.net
+    CNAME  rsend                rsend.forge.rmta.net
+
+Nothing was added to or changed on the root name. The iCloud mail records (MX, the root SPF line, `sig1._domainkey`,
+`_dmarc`) were checked before and after and are as they were. Receiving is off in Resend and must stay off:
+turning it on would send mail for the domain to Resend instead of iCloud.
 
 ### If link emails stop going out
 
@@ -202,8 +220,14 @@ tests can run today's script against a Sheet those versions made.
 
 The stand-in Resend answers as the real one did on 5 Oct 2026: a key it does not know gets `401 validation_error
 "API key is invalid"` on `/emails` and `400` on `/domains` (Resend's own pages say 403); no key gets
-`401 missing_api_key`. What a sending-only key gets on `/domains` (`401 restricted_api_key`) is from Resend's pages,
-not yet seen for real.
+`401 missing_api_key`. A sending-only key asked about domains is told it may only send; `checkSender` read that
+correctly from the real service on 5 Oct.
+
+The stand-in Sheet copies one habit of the real one, seen on the first real sign-up: a cell that `appendRow` fills
+loses its plain-text format, as if the value had been typed in. So the Code, Email and Link cells of a new row are
+not held as plain text, and Started shows in the Sheet's own date style. It does no harm, because those three hold
+only shapes the script has checked (a code, one plain address, a link), and Name and the Data cells, which hold what
+a man typed, keep their plain-text format. The tests pass with the stand-in behaving this way.
 
 ## Known limits
 
