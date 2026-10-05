@@ -446,7 +446,7 @@ function keep(){
 function commit(){
   if(API&&!dirty){dirty=true;since=Date.now();}
   keep();
-  if(API){soon(900);setTimeout(paintStamp,7000);}
+  if(API){soon(900);setTimeout(paintStamp,10500);}
 }
 
 function countTo(el,from,to,ms){
@@ -865,10 +865,11 @@ function pull(now){
         if(gated)gate('badLink');else fails++;            // a count already on this device stays usable
       }else throw new Error((res&&res.error)||'server');
     })
-    .catch(()=>{fails++;if(gated==='loading')gate('cantLoad');})
+    .catch(()=>{fails++;if(gated==='loading'&&fails>=3)gate('cantLoad');})   // a first visit tries three times before giving up
     .then(()=>{
       busy=false;keep();paintStamp();
-      if(dirty&&!gated)soon(fails?waitFor(fails):0);
+      if(gated==='loading')setTimeout(()=>{if(gated==='loading')pull(true);},1500*fails);
+      else if(dirty&&!gated)soon(fails?waitFor(fails):0);
     });
 }
 
@@ -931,7 +932,7 @@ function gate(kind){
 /* The line at the foot: when the count was last saved, or that it has not been yet. */
 function paintStamp(){
   const el=$('stamp');
-  const late=!!API&&dirty&&!gated&&(fails>0||Date.now()-since>6000);
+  const late=!!API&&dirty&&!gated&&(fails>0||Date.now()-since>10000);    // the backend can take ten seconds on a slow day
   el.classList.toggle('warn',late);
   if(late){el.textContent=P('unsaved');return;}
   const t=API?savedAt:Date.now();

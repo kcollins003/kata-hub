@@ -15,6 +15,15 @@ so the count survives a cleared browser or a new phone.
 | The backend | Apps Script inside the Google Sheet "Kata Warrior Trackers" | `backend/Code.gs` |
 | The Stripe keys | Script Properties of that Apps Script. Never in this repo. | |
 
+## Where the backend is (deployed 4 Oct 2026)
+
+- Sheet: "Kata Warrior Trackers", in Kevin's Drive. Keep it private: the Link column opens any buyer's tracker.
+- Script: bound to that Sheet (Extensions > Apps Script), project "Kata Warrior Trackers".
+- Web address: `https://script.google.com/macros/s/AKfycbyiPm1fkIKWs4jJ0RZmidV3mJGNO6wIqYaAxmY_tM4BceeGC0I3UyHxFO_aoynH2Y-g8g/exec`
+  It is not a secret; it is in `tracker.html`. Opening it in a browser answers `{"ok":true,...}`.
+- A row added to the Sheet by hand, with any code shaped like `cs_test_` or `cs_live_` plus ten or more letters and
+  digits, opens a tracker without a purchase. That is how to give one away, and how the first test row was made.
+
 ## The page
 
 `page/tracker.src.html` is the file to edit. Every word a buyer sees is in the `COPY` block near the top of its script.
@@ -46,6 +55,7 @@ count, folds its own changes in (`merge3` in the page), and saves again.
     python3 build.py http://localhost:8787/macros/s/FAKE/exec
     python3 test_site.py                    # the site page against Code.gs, end to end (starts mock_server.js itself)
     python3 wrap_preview.py && python3 test_preview.py && python3 test_widths.py   # the buyer's path, and ten screen widths
+    python3 build.py <backend web address> && python3 test_real.py <code of a test row>   # the real backend
 
 Needs Node, Python, and Playwright with Chromium.
 

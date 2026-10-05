@@ -175,7 +175,7 @@ try:
         ctl("/mode", {"down": True})
         ctx3, d3 = device("third phone")
         d3.goto(PAGE + "?k=" + A)
-        check("a first visit with the backend unreachable says it could not load", until(lambda: text(d3) == "COULD NOT LOAD", 8), text(d3))
+        check("a first visit with the backend unreachable keeps trying before it says so", until(lambda: text(d3) == "COULD NOT LOAD", 15) and len([e for e in dump()["log"] if e.get("down")]) >= 3, (text(d3), len([e for e in dump()["log"] if e.get("down")])))
         ctl("/mode", {"down": False})
         d3.locator(".boot").click()
         check("and a tap loads it once the backend is back", until(lambda: d3.locator("#bigN").count() == 1, 8) and big(d3) == 100, text(d3)[:120])
