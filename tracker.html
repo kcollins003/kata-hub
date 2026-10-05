@@ -845,6 +845,23 @@ function armed(btn){
 function soon(ms){clearTimeout(pushTimer);pushTimer=setTimeout(push,ms);}
 function waitFor(n){return Math.min(60000,2000*Math.pow(2,Math.max(0,n-1)));}
 
+/* An answer is believed only if it is an answer to the question that was asked: sign up, load, or save.
+   Anything else is treated as no answer at all, and the page asks again as it would after a dropped connection.
+   (Seen once, moments after the backend was updated: a request to load a link was answered as if the backend's
+   address had simply been opened. Believed, that would have read as "this link is good and holds nothing".) */
+function answers(a,j){
+  if(!j||typeof j!=='object'||Array.isArray(j)||typeof j.ok!=='boolean')return false;
+  const count=n=>typeof n==='number'&&isFinite(n)&&n>=0&&Math.floor(n)===n;
+  if(!j.ok){
+    if(j.conflict===true)return a==='save'&&count(j.rev)&&typeof j.data==='string';
+    return typeof j.error==='string'&&j.error!=='';
+  }
+  if(a==='load')return count(j.rev)&&typeof j.data==='string';
+  if(a==='save')return count(j.rev)&&j.rev>=1;
+  if(a==='join')return j.sent===true||okCode(j.k);
+  return false;
+}
+
 function call(payload,last){
   const body=JSON.stringify(payload);
   const ctl=window.AbortController?new AbortController():null;
@@ -854,6 +871,7 @@ function call(payload,last){
   if(last&&body.length<60000)opt.keepalive=true;          // let it finish even as the page is put away
   return fetch(API,opt)
     .then(r=>{if(!r.ok)throw new Error('http '+r.status);return r.json();})
+    .then(j=>{if(!answers(payload.a,j))throw new Error('not an answer');return j;})
     .then(j=>{clearTimeout(timer);return j;},e=>{clearTimeout(timer);throw e;});
 }
 
