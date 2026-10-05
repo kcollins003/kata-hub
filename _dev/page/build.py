@@ -2,26 +2,28 @@
 
   python3 build.py                 -> out/tracker.page.html  (the preview: no backend, the count stays on the device)
   python3 build.py <backend url>   -> also out/tracker.html  (the page for katawarrior.com, talking to that backend)
+
+The tests build their own copy (see test_site.py), so out/tracker.html is only ever the page for the site.
 """
 import pathlib, re, sys
 
 here = pathlib.Path(__file__).parent
-src = (here / "tracker.src.html").read_text()
-assert all(ord(c) < 128 for c in src), "tracker.src.html must stay plain ASCII"
-assert src.count("@@API@@") == 1
-out = here / "out"; out.mkdir(exist_ok=True)
 
-# 1. the preview, as an artifact page: the fragment as it is, with no backend
-(out / "tracker.page.html").write_text(src.replace("@@API@@", ""))
 
-# 2. the site page: a whole document
-if len(sys.argv) > 1:
-    api = sys.argv[1]
+def source():
+    src = (here / "tracker.src.html").read_text()
+    assert all(ord(c) < 128 for c in src), "tracker.src.html must stay plain ASCII"
+    assert src.count("@@API@@") == 1
+    return src
+
+
+def site_page(api, title="Kata Warrior"):
+    """The whole document for katawarrior.com, talking to the backend at this address."""
+    src = source()
     assert re.fullmatch(r"https?://[A-Za-z0-9._~:/?#\[\]@!$&()*+,;=%-]+", api) and "'" not in api, "that does not look like a web address"
     m = re.fullmatch(r"<title>.*?</title>\n(<link [^>]+>)\n(<style>.*?</style>)\n\n(.*)", src, re.S)
     assert m, "tracker.src.html no longer starts with title, font link, style"
     font, style, body = m.group(1), m.group(2), m.group(3).replace("@@API@@", api)
-    title = sys.argv[2] if len(sys.argv) > 2 else "Kata Warrior"
     doc = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -48,6 +50,15 @@ if len(sys.argv) > 1:
 </html>
 """
     assert all(ord(c) < 128 for c in doc)
-    (out / "tracker.html").write_text(doc)
-    print("site page:", len(doc), "bytes ->", out / "tracker.html")
-print("preview  :", len(src) - len("@@API@@"), "bytes ->", out / "tracker.page.html")
+    return doc
+
+
+if __name__ == "__main__":
+    src = source()
+    out = here / "out"; out.mkdir(exist_ok=True)
+    (out / "tracker.page.html").write_text(src.replace("@@API@@", ""))
+    if len(sys.argv) > 1:
+        doc = site_page(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else "Kata Warrior")
+        (out / "tracker.html").write_text(doc)
+        print("site page:", len(doc), "bytes ->", out / "tracker.html")
+    print("preview  :", len(src) - len("@@API@@"), "bytes ->", out / "tracker.page.html")

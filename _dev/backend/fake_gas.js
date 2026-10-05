@@ -1,22 +1,31 @@
 /* A stand-in for the Google services Code.gs calls, strict enough to catch the mistakes that matter:
-   a cell over 50,000 characters throws, and any text that Sheets would read as a formula is recorded as a hazard. */
+   a cell over 50,000 characters throws, any text that Sheets would read as a formula is recorded as a hazard,
+   and an email is refused unless it goes to exactly one plain address with no line break in its headers. */
 'use strict';
 const vm = require('vm');
 const fs = require('fs');
 const path = require('path');
 
-function makeWorld() {
+function makeWorld(file) {
   const world = {
     sheets: {},            // name -> Sheet
     props: {},             // script properties
     cache: {},             // key -> {v, until}
     hazards: [],           // every write Sheets would have treated as a formula
     stripe: { sessions: {}, keys: { rk_test_good: 'test', rk_live_good: 'live' }, calls: [], fail: 0 },
+    mail: { sent: [], quota: 100, fail: '', denied: false },   // every email sent; how many more today; a fault to raise instead of sending; permission never given
+    unflushed: 0,          // times a lock was let go with a write still waiting to reach the Sheet
+    wroteInLock: false,
+    afterFind: null,       // run once, straight after the next search finds a row: someone rearranging the Sheet at the worst moment
+    uuids: [],             // if not empty, the next "random" ids, in order
+    cacheFail: '',         // cache keys starting with this cannot be written
+    validations: {},
     locks: 0, lockWaits: 0,
     logs: [], errors: [],
-    now: null              // set to a number to freeze the clock
+    now: null,             // set to a number to freeze the clock
+    skew: 0                // or leave it running and push it forward by this many milliseconds
   };
-  const clock = () => (world.now == null ? Date.now() : world.now);
+  const clock = () => (world.now == null ? Date.now() + world.skew : world.now);
   class ClockDate extends Date { constructor(...a) { if (a.length === 0) super(clock()); else super(...a); } static now() { return clock(); } }   // so Code.gs reads the same clock the tests set
 
   class Sheet {
@@ -27,8 +36,9 @@ function makeWorld() {
     getLastRow() { for (let r = this.rows.length; r >= 1; r--) { if ((this.rows[r - 1] || []).some(v => v !== '' && v != null)) return r; } return 0; }
     getLastColumn() { let m = 0; this.rows.forEach(row => (row || []).forEach((v, i) => { if (v !== '' && v != null) m = Math.max(m, i + 1); })); return m; }
     setFrozenRows(n) { this.frozen = n; }
+    setColumnWidth(col, w) { if (!(col >= 1) || !(w > 0)) throw new Error('bad column width'); this.widths = this.widths || {}; this.widths[col] = w; return this; }
     hideColumns(col, n) { this.hidden.push([col, n]); }
-    deleteRow(n) { if (n < 1 || n > this.rows.length) throw new Error('deleteRow out of range ' + n); this.rows.splice(n - 1, 1); }
+    deleteRow(n) { if (n < 1 || n > this.rows.length) throw new Error('deleteRow out of range ' + n); this.rows.splice(n - 1, 1); if (world.locks > 0) world.wroteInLock = true; }
     appendRow(arr) { const r = this.getLastRow() + 1; arr.forEach((v, i) => this._put(r, i + 1, v)); return this; }
     getRange(row, col, numRows, numCols) {
       numRows = numRows == null ? 1 : numRows; numCols = numCols == null ? 1 : numCols;
@@ -41,6 +51,7 @@ function makeWorld() {
     _put(r, c, v) {
       if (c > this.maxCols) throw new Error('Those columns are out of bounds.');
       while (this.rows.length < r) this.rows.push([]);
+      if (world.locks > 0) world.wroteInLock = true;
       const text = this.formats[c] === '@';
       let stored = v;
       if (typeof v === 'string') {
@@ -71,16 +82,26 @@ function makeWorld() {
     setValue(v) { for (let r = 0; r < this.nr; r++) for (let c = 0; c < this.nc; c++) this.sh._put(this.row + r, this.col + c, v); return this; }
     setNumberFormat(f) { for (let c = 0; c < this.nc; c++) this.sh.formats[this.col + c] = f; return this; }
     setFontWeight() { return this; }
+    setWrap() { return this; }
+    setDataValidation(rule) { if (!rule || !rule.built) throw new Error('fake: setDataValidation needs a built rule'); world.validations[this.sh.name + '!' + this.row + ':' + this.col] = rule; return this; }
+    setVerticalAlignment() { return this; }
+    getValue() { return this.sh._get(this.row, this.col); }
+    getDisplayValues() { return this.getValues().map(line => line.map(v => (v instanceof Date ? v.toISOString() : String(v == null ? '' : v)))); }
     createTextFinder(text) {
       const range = this; let entire = false, cased = false;
       return {
         matchEntireCell(b) { entire = b; return this; },
         matchCase(b) { cased = b; return this; },
+        useRegularExpression(b) { if (b) throw new Error('fake: regular-expression search is not modelled'); return this; },
         findNext() {
           for (let r = 0; r < range.nr; r++) for (let c = 0; c < range.nc; c++) {
             let cell = String(range.sh._get(range.row + r, range.col + c)), want = String(text);
             if (!cased) { cell = cell.toLowerCase(); want = want.toLowerCase(); }
-            if (entire ? cell === want : cell.indexOf(want) >= 0) return new Range(range.sh, range.row + r, range.col + c, 1, 1);
+            if (entire ? cell === want : cell.indexOf(want) >= 0) {
+              const hit = new Range(range.sh, range.row + r, range.col + c, 1, 1);
+              if (world.afterFind) { const f = world.afterFind; world.afterFind = null; f(hit); }
+              return hit;
+            }
           }
           return null;
         }
@@ -111,20 +132,52 @@ function makeWorld() {
   }
 
   const sandbox = {
-    SpreadsheetApp: { getActiveSpreadsheet: () => ss },
-    LockService: { getScriptLock: () => ({ waitLock() { world.locks++; world.lockWaits++; if (world.locks > 1) throw new Error('lock taken twice'); }, releaseLock() { world.locks--; } }) },
+    SpreadsheetApp: {
+      getActiveSpreadsheet: () => ss,
+      flush() { world.wroteInLock = false; },
+      newDataValidation() {
+        const rule = { list: null, dropdown: null, allowInvalid: true, built: false };
+        return { requireValueInList(v, show) { if (!Array.isArray(v) || !v.length) throw new Error('fake: a list is needed'); rule.list = v.slice(); rule.dropdown = show; return this; }, setAllowInvalid(b) { rule.allowInvalid = b; return this; }, build() { if (!rule.list) throw new Error('fake: a rule with no list'); rule.built = true; return rule; } };
+      }
+    },
+    LockService: { getScriptLock: () => ({
+      waitLock() { world.locks++; world.lockWaits++; world.wroteInLock = false; if (world.locks > 1) throw new Error('lock taken twice'); },
+      releaseLock() { if (world.wroteInLock) world.unflushed++; world.wroteInLock = false; world.locks--; }     // Google: flush before letting the lock go
+    }) },
     PropertiesService: { getScriptProperties: () => ({ getProperty: k => (k in world.props ? world.props[k] : null), setProperty: (k, v) => { world.props[k] = v; } }) },
     CacheService: { getScriptCache: () => ({
       get(k) { if (k.length > 250) throw new Error('cache key too long'); const e = world.cache[k]; return (e && e.until > clock()) ? e.v : null; },
-      put(k, v, ttl) { if (k.length > 250) throw new Error('cache key too long'); world.cache[k] = { v: String(v), until: clock() + (ttl || 600) * 1000 }; }
+      put(k, v, ttl) {
+        if (k.length > 250) throw new Error('cache key too long');
+        if (ttl !== undefined && !(ttl > 0 && ttl <= 21600)) throw new Error('cache: expiration must be between 1 and 21600 seconds');
+        if (world.cacheFail && k.indexOf(world.cacheFail) === 0) throw new Error('cache: simulated fault');
+        world.cache[k] = { v: String(v), until: clock() + (ttl || 600) * 1000 };
+      }
     }) },
     UrlFetchApp: { fetch: stripeFetch },
+    MailApp: {
+      getRemainingDailyQuota() { if (world.mail.denied) throw new Error('You do not have permission to call MailApp.getRemainingDailyQuota. Required permissions: https://www.googleapis.com/auth/script.send_mail'); return world.mail.quota; },
+      sendEmail(m) {
+        if (arguments.length !== 1 || !m || typeof m !== 'object') throw new Error('fake MailApp: sendEmail takes one message');
+        const extra = Object.keys(m).filter(k => ['to', 'subject', 'body', 'name'].indexOf(k) < 0);
+        if (extra.length) throw new Error('fake MailApp: unexpected ' + extra.join(','));            // no cc, no bcc, no html, no reply-to
+        ['to', 'subject', 'body', 'name'].forEach(k => { if (typeof m[k] !== 'string' || !m[k]) throw new Error('fake MailApp: missing ' + k); });
+        if (world.mail.denied) throw new Error('You do not have permission to call MailApp.sendEmail. Required permissions: https://www.googleapis.com/auth/script.send_mail');
+        if (!/^[^\s,;<>"()\\]+@[^\s,;<>"'()\\@]+$/.test(m.to)) throw new Error('Invalid email: ' + m.to);        // one plain address
+        if (/[\r\n]/.test(m.subject) || /[\r\n<>"]/.test(m.name)) throw new Error('fake MailApp: a header that could be bent');
+        if (world.mail.fail) throw new Error(world.mail.fail);
+        if (world.mail.quota < 1) throw new Error('Service invoked too many times for one day: email.');
+        world.mail.quota--;
+        world.mail.sent.push({ to: m.to, subject: m.subject, body: m.body, name: m.name, at: clock() });
+      }
+    },
+    Utilities: { getUuid: () => (world.uuids.length ? world.uuids.shift() : require('crypto').randomUUID()) },
     ContentService: { MimeType: { JSON: 'JSON' }, createTextOutput: text => ({ text: text, mime: null, setMimeType(m) { this.mime = m; return this; }, getContent() { return this.text; } }) },
     console: { log: (...a) => world.logs.push(a.join(' ')), error: (...a) => world.errors.push(a.join(' ')) },
     Date: ClockDate, JSON: JSON, Math: Math, String: String, Number: Number, Array: Array, Object: Object, Error: Error, RegExp: RegExp, encodeURIComponent, decodeURIComponent
   };
   vm.createContext(sandbox);
-  const src = fs.readFileSync(path.join(__dirname, 'Code.gs'), 'utf8');
+  const src = fs.readFileSync(file || path.join(__dirname, 'Code.gs'), 'utf8');      // a test may run an older copy of the script
   vm.runInContext(src, sandbox, { filename: 'Code.gs' });
   world.gs = sandbox;
   world.post = body => JSON.parse(sandbox.doPost({ postData: { contents: typeof body === 'string' ? body : JSON.stringify(body), type: 'text/plain' } }).getContent());

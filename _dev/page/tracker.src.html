@@ -14,6 +14,7 @@
     --green:#4a6b3f;
     --ok:#8fbf7f;
     --err:#e08b86;
+    --soft:#9a9188;
     --white:#fff;
     --cinzel:'Cinzel',Georgia,serif;
     --label:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;
@@ -105,6 +106,7 @@
   select:focus,input:focus{border-color:var(--blood)}
   select:focus-visible,input:focus-visible{outline:none}
   input.bad{border-color:var(--blood)}
+  #jnEmail.bad{border-color:var(--err)}
   input::placeholder{color:var(--faint)}
   .hold::placeholder{color:var(--bone);opacity:1}
   .hold:focus::placeholder{opacity:.3}
@@ -115,6 +117,8 @@
   .msg{margin-top:16px;padding:13px;text-align:center;font-size:13px;border:1px solid var(--line)}
   .msg:empty{display:none}
   .msg.err{border-color:var(--blood);color:var(--err)}
+  .msg.ok{border-color:var(--green);color:var(--ok)}
+  .fine{margin:18px auto 0;max-width:340px;text-align:center;font-size:12px;line-height:1.6;color:var(--soft)}
 
   /* the name box and the button that locks it in */
   .whorow{display:flex;gap:8px}
@@ -185,7 +189,7 @@
   .toast button{flex-shrink:0;background:none;border:0;color:var(--bone);font-size:10px;letter-spacing:.16em;text-transform:uppercase;padding:10px 6px}
   .toast button u{text-decoration:none;border-bottom:1px solid var(--blood);padding-bottom:2px}
 
-  /* one line and nothing else: loading, or a link that cannot be opened */
+  /* one line and nothing else: loading, or a backend that cannot be reached */
   .boot{display:block;width:100%;padding:70px 0;background:none;border:0;text-align:center;color:var(--dim);font-size:12px;letter-spacing:.14em;text-transform:uppercase;line-height:1.7}
   .stamp.warn{color:var(--err)}
 
@@ -198,6 +202,7 @@
   <div class="mast">
     <h1 id="brand">KATA WARRIOR</h1>
     <div class="rule"></div>
+    <div class="who" id="tag" hidden></div>
     <button type="button" class="who" id="who" data-act="who" hidden></button>
     <button type="button" class="more" id="more" data-act="menu" aria-label="Menu" hidden>
       <svg viewBox="0 0 18 4" aria-hidden="true"><circle cx="2" cy="2" r="2" fill="currentColor"/><circle cx="9" cy="2" r="2" fill="currentColor"/><circle cx="16" cy="2" r="2" fill="currentColor"/></svg>
@@ -229,6 +234,7 @@ const KEY   = 'kw.count.v1';
 const MAX_LINES = 40, MAX_NAME = 40;
 const MAX_TARGET = 99999;      // a line's number: up to five digits
 const MAX_REPS   = 9999;       // one log entry: up to four digits
+const MAX_EMAIL  = 120;
 
 /* The kata menu. Names and order exactly as katawarrior.com lists them. */
 const TWENTY = ['Bassai','Empi','Gankaku','Hangetsu','Heian Godan','Heian Nidan','Heian Sandan','Heian Shodan','Heian Yodan','Jion','Jitte','Kwanku','Naifanchi No Sai','Nicho Sai','Sakagawa','Sanchin','Sancho Sai','Tekki Nidan','Tekki Sandan','Tekki Shodan'];
@@ -247,6 +253,7 @@ const WORDS  = ['Zero','One','Two','Three','Four','Five','Six','Seven','Eight','
    To change a word, change it here and nowhere else.
    The first block is Kevin's: lifted from katawarrior.com, or given by him on 4 Oct 2026.
    The second block is stand-ins, waiting for his words.
+   (The email that carries a man's link is not here. Its words are on the Words tab of the Sheet.)
 --------------------------------------------------------------- */
 const COPY = {
   brand:'KATA WARRIOR',
@@ -276,6 +283,8 @@ const COPY = {
   other:'Other',                            // last choice in both menus; also labels a custom line
   kata:'Kata',                              // labels a kata's name in the editor
   drill:'Drill',                            // labels a drill's name in the editor
+  product:'Tracker',                        // under KATA WARRIOR at the door. His name for this: "Kata Warrior Tracker"
+  doorLine:'Build your own kata challenge and track it',   // his one line for it, at the door
 
   /* stand-ins */
   phKata:'Custom form',                     // hint inside an empty name box
@@ -294,8 +303,12 @@ const COPY = {
   linkLabel:'Your link',
   homeLabel:'Home Screen',
   unsaved:'Not saved yet',                  // at the foot, when a change has not reached the backend
-  noLink:'Open this page from your own link',   // the page was opened with no link of his
-  badLink:'This link is not active'         // the link is not a paid checkout
+  badLink:'This link is not active',        // at the door, when the link he opened is not one the backend knows
+  email:'Email',                            // over the email box at the door
+  join:'START',                             // the button at the door
+  joinNote:'Your link is sent to this email. Kata Warrior may email you.',   // under the button: what giving his email means
+  sent:'Check your email',                  // his link has gone to his inbox; it is shown nowhere else
+  badEmail:'Check the email address'        // what he typed is not an email address
 };
 
 /* The three kinds of line. Each has an add button, a label for its name, and a hint for a typed name. */
@@ -363,18 +376,23 @@ function core(s){return {v:1,who:s.who,lines:s.lines,log:s.log};}
 
 /* His private link carries his code: katawarrior.com/tracker.html?k=<code>. It is his key to his own row.
    If the page is opened without it, the last code the backend opened on this device is put back,
-   so the address stays his link. */
+   so the address stays his link. Opened as tracker.html?new it shows the door regardless:
+   the way to start a second tracker on a phone that already has one. */
+function okCode(c){return /^(cs_(test|live)_[A-Za-z0-9]{10,200}|kw_[a-f0-9]{32})$/.test(c||'');}
+let oddLink=false;                                  // the address carried something that is not a code
 function readCode(){
-  const ok=c=>/^cs_(test|live)_[A-Za-z0-9]{10,200}$/.test(c||'');
-  let c='';
-  try{c=new URLSearchParams(window.location.search).get('k')||'';}catch(e){}
-  if(ok(c))return c;
+  let c='',fresh=false;
+  try{const q=new URLSearchParams(window.location.search);c=q.get('k')||'';fresh=q.has('new');}catch(e){}
+  if(okCode(c))return c;
+  oddLink=c!=='';
+  if(fresh)return '';                               // tracker.html?new : the door, even on a phone that already has a link
   try{c=window.localStorage.getItem(KEY+'.code')||'';}catch(e){c='';}
-  if(ok(c)){try{window.history.replaceState(null,'',window.location.pathname+'?k='+c);}catch(e){}return c;}
+  if(okCode(c)){try{window.history.replaceState(null,'',window.location.pathname+'?k='+c);}catch(e){}return c;}
   return '';
 }
-const CODE = API ? readCode() : '';
-const LKEY = (API&&CODE) ? KEY+':'+CODE : KEY;      // each code keeps its own copy on the device
+/* Both are set once as the page opens. They change only when he signs up at the door and is handed a code. */
+let CODE = API ? readCode() : '';
+let LKEY = (API&&CODE) ? KEY+':'+CODE : KEY;        // each code keeps its own copy on the device
 
 let memory=null;
 const Store={
@@ -425,7 +443,8 @@ let shown={total:0,pct:0,lines:{}};      // what is on screen now, so changes an
 let setup=freshSetup('');                // the first screen, until he taps BEGIN
 let toastTimer=0,armTimer=0;
 let onClose=null;                        // runs once, when the open panel closes
-let gated=null;                          // one line is on screen instead of the count: loading, or a link that cannot be opened
+let gated=null;                          // something other than the count is on screen: 'loading', 'cantLoad', or the 'door'
+let joining=false;                       // his email is on its way to the backend
 let wantRender=false;                    // the count changed while he was typing; redraw when he is done
 
 /* Where this device stands with the backend. */
@@ -435,6 +454,7 @@ let dirty=false;                         // he has changed something the backend
 let since=0;                             // when that began
 let savedAt=0;                           // the last time the two agreed
 let busy=false,fails=0,pushTimer=0,lastPull=0;
+let dead=false;                          // the backend has no row for this link any more: stop asking, until he taps the foot
 
 function freshSetup(who){return {who:who||'',locked:!!who,items:[]};}   // locked: his name is set and its box is put away
 
@@ -823,7 +843,7 @@ function call(payload,last){
 /* Send his count up. */
 function push(last){
   clearTimeout(pushTimer);
-  if(!API||busy||!dirty||gated)return;
+  if(!API||busy||!dirty||gated||dead)return;
   busy=true;
   const sent=JSON.stringify(core(S)),d=derive(S);
   let reopen=false;
@@ -849,20 +869,16 @@ function push(last){
 /* Ask the backend for his count. */
 function pull(now){
   if(!API||busy)return;
+  if(dead&&!now)return;
   if(!now&&Date.now()-lastPull<30000)return;
   lastPull=Date.now();
   busy=true;
   call({a:'load',k:CODE})
     .then(res=>{
       if(res&&res.ok){
-        const first=gated!==null;
-        gated=null;fails=0;
-        try{window.localStorage.setItem(KEY+'.code',CODE);}catch(e){}   // the backend opened this link: it is this device's link now
-        const drew=(first||res.rev!==rev)?adopt(res.rev,res.data):false;
-        if(!drew&&!dirty)savedAt=Date.now();
-        if(first&&!drew){setup=freshSetup(S.who);render();}   // a new buyer: nothing saved yet, so the first screen
+        opened(res);
       }else if(res&&(res.error==='code'||res.error==='unpaid'||res.error==='closed')){
-        if(gated)gate('badLink');else fails++;            // a count already on this device stays usable
+        if(gated)door('badLink');else{fails++;dead=true;}   // a count already on this device stays usable; it is just not asked about again
       }else throw new Error((res&&res.error)||'server');
     })
     .catch(()=>{fails++;if(gated==='loading'&&fails>=3)gate('cantLoad');})   // a first visit tries three times before giving up
@@ -871,6 +887,17 @@ function pull(now){
       if(gated==='loading')setTimeout(()=>{if(gated==='loading')pull(true);},1500*fails);
       else if(dirty&&!gated)soon(fails?waitFor(fails):0);
     });
+}
+
+/* The backend has opened his link. */
+function opened(res){
+  const first=gated!==null;
+  gated=null;fails=0;dead=false;
+  $('tag').hidden=true;
+  try{window.localStorage.setItem(KEY+'.code',CODE);}catch(e){}   // the backend opened this link: it is this device's link now
+  const drew=(first||res.rev!==rev)?adopt(res.rev,res.data):false;
+  if(!drew&&!dirty)savedAt=Date.now();
+  if(first&&!drew){setup=freshSetup(S.who);render();}   // a new man: nothing saved yet, so the first screen
 }
 
 /* The backend's copy has arrived. Take it, or fold this device's changes into it. */
@@ -924,9 +951,76 @@ function refresh(){
 /* One line and nothing else. */
 function gate(kind){
   gated=kind;
-  dock.hidden=true;$('more').hidden=true;$('who').hidden=true;
-  const tap=(kind==='cantLoad'||kind==='badLink');
+  dock.hidden=true;$('more').hidden=true;$('who').hidden=true;$('tag').hidden=true;
+  const tap=(kind==='cantLoad');
   app.innerHTML=tap?'<button type="button" class="boot" data-act="retry">'+T(kind)+'</button>':'<div class="boot">'+T(kind)+'</div>';
+}
+
+/* ---------------------------------------------------------------
+   THE DOOR
+   The page was opened with no link of his, or with one the backend does not know.
+   He gives his email, and his link is sent to it. The link is shown nowhere else, so the door
+   only ever says "check your email". (If Kevin has switched "Open right away" on in the Sheet,
+   the backend also hands a NEW email its code, and the tracker opens here and now.)
+--------------------------------------------------------------- */
+const EMAIL=/^[a-z0-9_][a-z0-9._%+'\-]{0,63}@(?:[a-z0-9](?:[a-z0-9\-]{0,61}[a-z0-9])?\.)+[a-z]{2,24}$/;   // the same test the backend makes
+function goodEmail(e){return e.length<=MAX_EMAIL&&EMAIL.test(e)&&!/\.\.|\.@/.test(e);}
+
+function door(note){
+  gated='door';joining=false;
+  dock.hidden=true;$('more').hidden=true;$('who').hidden=true;
+  const tag=$('tag');tag.textContent=P('product');tag.hidden=false;
+  app.innerHTML=
+    (note?'<div class="msg err" id="jnNote">'+T(note)+'</div>':'')+
+    '<p class="intro">'+T('doorLine')+'</p>'+
+    '<label for="jnEmail">'+T('email')+'</label>'+
+    '<input type="email" id="jnEmail" name="email" inputmode="email" autocomplete="email" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" maxlength="'+MAX_EMAIL+'" aria-describedby="jnMsg">'+
+    '<div class="msg" id="jnMsg" role="alert"></div>'+        // straight under the box, so the keyboard never covers it
+    '<button type="button" class="go" data-act="join" id="jnGo">'+T('join')+'</button>'+
+    '<p class="fine">'+T('joinNote')+'</p>';
+}
+
+function join(){
+  const box=$('jnEmail'),btn=$('jnGo');
+  if(joining||gated!=='door'||!box||!btn)return;
+  const say=(kind,cls)=>{const m=$('jnMsg');if(m){m.textContent=kind?P(kind):'';m.className='msg'+(cls?' '+cls:'');}};
+  const wrong=()=>{const x=$('jnEmail');if(x){x.classList.add('bad');x.setAttribute('aria-invalid','true');}say('badEmail','err');};
+  const email=box.value.trim().toLowerCase();
+  if(!goodEmail(email)){wrong();box.focus();return;}
+  joining=true;btn.disabled=true;btn.innerHTML=T('loading');say('','');
+  box.readOnly=true;box.blur();            // the address on its way is the one he sees, and the keyboard is out of the way of the answer
+  const done=(kind,cls)=>{
+    joining=false;
+    if(gated!=='door')return;
+    const b=$('jnGo'),x=$('jnEmail');
+    if(b){b.disabled=false;b.innerHTML=T('join');}
+    if(x)x.readOnly=false;
+    if(kind==='badEmail')wrong();else say(kind,cls);
+  };
+  call({a:'join',e:email})
+    .then(res=>{
+      if(res&&res.ok&&okCode(res.k))enter(res.k,res.mailed===true?email:'');
+      else if(res&&res.ok&&res.sent)done('sent','ok');
+      else if(res&&res.error==='email')done('badEmail','err');
+      else done('cantLoad','err');
+    })
+    .catch(()=>{done('cantLoad','err');});
+}
+
+/* Only when Kevin has switched "Open right away" on: the backend made him a row and handed back his code.
+   From here on this page is his tracker, and its address is his link, so adding it to the Home Screen keeps the link too.
+   The address his link was emailed to is shown for a moment, so a slip of the thumb is seen while it can still be put right. */
+function enter(code,mailedTo){
+  joining=false;
+  CODE=code;LKEY=KEY+':'+CODE;
+  let moved=true;
+  try{window.history.replaceState(null,'',window.location.pathname+'?k='+CODE);}catch(e){moved=false;}
+  S=blank();rev=0;base=null;dirty=false;dead=false;savedAt=0;memory=null;
+  opened({rev:0,data:''});
+  keep();paintStamp();
+  window.scrollTo(0,0);
+  if(mailedTo)toast('<span>'+esc(mailedTo)+'</span>',8000);
+  if(!moved){try{window.location.replace(window.location.pathname+'?k='+CODE);}catch(e){}}   // the address could not be rewritten in place: go to it
 }
 
 /* The line at the foot: when the count was last saved, or that it has not been yet. */
@@ -946,7 +1040,7 @@ function start(){
     setup=freshSetup(S.who);
     render();return;
   }
-  if(!CODE){gate('noLink');return;}
+  if(!CODE){door(oddLink?'badLink':'');return;}
   if(local){
     S=local.s;base=local.b;rev=local.rev;dirty=local.dirty;savedAt=local.at;
     if(dirty)since=Date.now();
@@ -978,6 +1072,7 @@ const ACT={
   },
   /* Tapping the name brings its box back: on the first screen in place, later in the menu. */
   who:()=>{
+    if(gated)return;
     if(S.lines.length){openMenu();const m=$('mnWho');if(m){try{m.focus({preventScroll:true});}catch(e){}}return;}
     setup.locked=false;renderSetup();
     const w=$('suWho');if(w){try{w.focus();}catch(e){}}
@@ -1025,9 +1120,10 @@ const ACT={
     hideToast();closePanel();render();window.scrollTo(0,0);
   },
   /* The line at the foot: tap it to try the backend again now. */
-  sync:()=>{if(!API||gated)return;fails=0;if(dirty)push();else pull(true);},
+  sync:()=>{if(!API||gated)return;fails=0;if(dead){dead=false;pull(true);}else if(dirty)push();else pull(true);},
   /* The one line on a screen that could not open: tap it to try again. */
-  retry:()=>{if(gated==='cantLoad'||gated==='badLink'){fails=0;gate('loading');pull(true);}}
+  retry:()=>{if(gated==='cantLoad'){fails=0;gate('loading');pull(true);}},
+  join:join
 };
 
 document.addEventListener('click',ev=>{
@@ -1041,6 +1137,7 @@ document.addEventListener('keydown',ev=>{
   if(ev.key!=='Enter')return;
   const t=ev.target,id=t&&t.id;
   if(id==='lgReps'){ev.preventDefault();doLog();}
+  else if(id==='jnEmail'){ev.preventDefault();join();}
   else if(id==='suWho'){ev.preventDefault();if(t.value.trim())ACT.lockWho();else t.blur();}
   else if(id==='mnWho'){ev.preventDefault();t.blur();}
   else if(t&&t.classList&&t.classList.contains('itn')){ev.preventDefault();const n=$('itt'+t.getAttribute('data-i'));if(n){n.focus();n.select();}}
@@ -1068,7 +1165,8 @@ document.addEventListener('input',ev=>{
     const v=digits(t.value,Number(t.getAttribute('maxlength'))||5);
     if(v!==t.value)t.value=v;
   }
-  if(id==='suWho'){setup.who=t.value;t.classList.remove('bad');paintWho();}
+  if(id==='jnEmail'){t.classList.remove('bad');t.removeAttribute('aria-invalid');}
+  else if(id==='suWho'){setup.who=t.value;t.classList.remove('bad');paintWho();}
   else if(id==='mnWho'){S.who=t.value.trim().slice(0,MAX_NAME);commit();paintWho();}
   else if(t&&t.getAttribute&&t.getAttribute('data-f')){
     const it=setup.items[Number(t.getAttribute('data-i'))];

@@ -45,7 +45,7 @@ http.createServer(async (req, res) => {
       : world.gs.doGet({ parameter: Object.fromEntries(url.searchParams) });
   } catch (err) { res.writeHead(500, CORS); res.end('<html>script error</html>'); return; }
   let parsed = {}; try { parsed = JSON.parse(body || '{}'); } catch (e) { /* not JSON */ }
-  log.push({ m: req.method, ct: req.headers['content-type'] || '', a: parsed.a, k: parsed.k, rev: parsed.rev, bytes: body.length, origin: req.headers.origin || '', answer: JSON.parse(out.getContent()).ok });
+  log.push({ m: req.method, ct: req.headers['content-type'] || '', a: parsed.a, k: parsed.k, e: parsed.e, keys: Object.keys(parsed).sort().join(','), rev: parsed.rev, bytes: body.length, origin: req.headers.origin || '', answer: JSON.parse(out.getContent()).ok, said: out.getContent().slice(0, 200) });
   if (mode.dropNext > 0) { mode.dropNext--; req.socket.destroy(); return; }                                   // the script ran, the answer never arrived
   const id = String(++seq); parked[id] = out.getContent();
   res.writeHead(302, Object.assign({ Location: 'http://127.0.0.1:' + PORT.echo + '/macros/echo?id=' + id }, CORS));
@@ -85,10 +85,18 @@ http.createServer(async (req, res) => {
   if (url.pathname === '/props') { Object.keys(body).forEach(k => { if (body[k] === null) delete world.props[k]; else world.props[k] = body[k]; }); return send(world.props); }
   if (url.pathname === '/delete') { const t = tab(); const i = t ? t.rows.findIndex(r => r[0] === body.k) : -1; if (i >= 1) t.deleteRow(i + 1); return send({ deleted: i >= 1 }); }
   if (url.pathname === '/call') { return send(world.post(body)); }                                            // act as another device, straight to the script
+  if (url.pathname === '/mail') { Object.assign(world.mail, body); return send({ quota: world.mail.quota, fail: world.mail.fail, sent: world.mail.sent.length }); }
+  if (url.pathname === '/clock') { world.skew += Number(body.add) || 0; return send({ skew: world.skew }); }  // let time pass for the script
+  if (url.pathname === '/setup') { world.gs.setup(); return send({ ok: true, tabs: Object.keys(world.sheets) }); }
+  if (url.pathname === '/words') {                                                                            // Kevin changes a cell on the Words tab
+    const W = world.sheets.Words; const i = W ? W.rows.findIndex(r => r[0] === body.name) : -1;
+    if (i < 0) return send({ ok: false });
+    W.getRange(i + 1, 2).setValue(body.text); return send({ ok: true });
+  }
   if (url.pathname === '/dump') {
     const t = tab();
-    const rows = t ? t.rows.slice(1).map(r => { const data = world.gs.unpack_(Array.from({ length: 20 }, (_, i) => r[i])).data; return { code: r[0], email: r[1], name: r[2], logged: r[3], of: r[4], lines: r[5], started: !!r[6], saved: !!r[7], rev: r[8], link: r[9], data: data, cells: r.slice(10).filter(c => c !== '' && c != null).length }; }) : [];
-    return send({ rows: rows, hazards: world.hazards, stripeCalls: world.stripe.calls.length, log: log, errors: world.errors, locks: world.locks });
+    const rows = t ? t.rows.slice(1).map(r => { const data = world.gs.unpack_(Array.from({ length: 20 }, (_, i) => r[i])).data; return { code: r[0], email: r[1], name: r[2], logged: r[3], of: r[4], lines: r[5], started: !!r[6], saved: !!r[7], rev: r[8], link: r[9], data: data, cells: r.slice(10, 20).filter(c => c !== '' && c != null).length, mailed: !!r[20] }; }) : [];
+    return send({ rows: rows, hazards: world.hazards, stripeCalls: world.stripe.calls.length, log: log, errors: world.errors, locks: world.locks, unflushed: world.unflushed, mail: world.mail.sent });
   }
   res.writeHead(404); res.end('no');
 }).listen(PORT.ctrl, 'localhost');
