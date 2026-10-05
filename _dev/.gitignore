@@ -1,0 +1,4 @@
+page/out/*.html
+page/shots/
+*.out
+__pycache__/

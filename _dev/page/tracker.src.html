@@ -1,0 +1,1122 @@
+<title>Kata Warrior Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;900&display=swap" rel="stylesheet">
+<style>
+  /* Layout: one narrow column. The count is the hero, the log button is docked in thumb reach,
+     everything else opens as a full panel. Tokens are katawarrior.com's own; the look is dark only. */
+  :root{
+    --black:#0a0908;
+    --panel:#121110;
+    --line:#26221f;
+    --bone:#f2ede5;
+    --dim:#7a726a;
+    --faint:#3d3833;
+    --blood:#a8322c;
+    --green:#4a6b3f;
+    --ok:#8fbf7f;
+    --err:#e08b86;
+    --white:#fff;
+    --cinzel:'Cinzel',Georgia,serif;
+    --label:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;
+    color-scheme:dark;
+  }
+  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html{height:100%;-webkit-text-size-adjust:100%;background:var(--black)}
+  body{
+    background:var(--black);
+    color:var(--bone);
+    font-family:var(--label);
+    font-size:14px;
+    min-height:100%;
+    -webkit-font-smoothing:antialiased;
+    touch-action:manipulation;
+  }
+  body.lock{overflow:hidden}
+  [hidden]{display:none!important}
+  body::after{
+    content:'';position:fixed;inset:0;pointer-events:none;z-index:2;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.035'/%3E%3C/svg%3E");
+  }
+  button,input,select{font:inherit;color:inherit;border-radius:0}
+  button{cursor:pointer}
+  :focus-visible{outline:1px solid var(--blood);outline-offset:2px}
+
+  .wrap{max-width:520px;margin-inline:auto;padding-inline:22px;padding-block:0 132px;position:relative;z-index:1}
+
+  /* masthead, as on the site */
+  .mast{padding:38px 0 30px;text-align:center;border-bottom:1px solid var(--line);position:relative}
+  .mast h1{font-family:var(--cinzel);font-weight:900;font-size:clamp(20px,7.2vw,26px);letter-spacing:.22em;text-indent:.22em;line-height:1}
+  .mast .rule{width:34px;height:2px;background:var(--blood);margin:16px auto 0}
+  .who{display:block;width:100%;margin-top:18px;padding:0;background:none;border:0;text-align:center;font-family:var(--cinzel);font-weight:400;font-size:14px;letter-spacing:.3em;text-indent:.3em;line-height:1.5;color:var(--bone);overflow-wrap:anywhere}
+  .more{position:absolute;right:-12px;top:0;width:44px;height:38px;background:none;border:0;color:var(--dim);display:grid;place-items:center}
+  .more svg{width:18px;height:4px;display:block}
+
+  .intro{padding:26px 0 0;text-align:center;font-size:14px;line-height:1.65;color:var(--dim);max-width:340px;margin:0 auto}
+
+  /* the count */
+  .count{padding:44px 0 34px;text-align:center}
+  .count .n{font-family:var(--cinzel);font-weight:900;font-size:clamp(66px,21vw,104px);line-height:.9;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+  .count .n.long{font-size:clamp(46px,14.5vw,76px)}
+  .count .of{font-family:var(--cinzel);font-weight:400;font-size:15px;letter-spacing:.3em;text-indent:.3em;color:var(--dim);margin-top:16px}
+  .bar{height:3px;background:var(--line);overflow:hidden}
+  .bar span{display:block;height:100%;width:0;background:var(--blood);transition:width 1.1s cubic-bezier(.2,.8,.2,1)}
+  .barfoot{display:flex;justify-content:space-between;margin-top:11px;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+
+  /* in training / forms complete */
+  .pair{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);margin-top:34px;border:1px solid var(--line)}
+  .cell{background:var(--panel);padding:20px 16px;text-align:center;min-width:0}
+  .cell .k{font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);margin-bottom:9px}
+  .cell .v{font-family:var(--cinzel);font-weight:600;font-size:15px;line-height:1.25;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+  .cell .v.big{font-size:26px}
+  .cell .v.big span{color:var(--dim);font-size:15px}
+  .cell .v.sub{color:var(--blood);margin-top:7px;font-size:13px}
+
+  /* the list */
+  .head{margin:44px 0 4px;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim);display:flex;justify-content:space-between;align-items:baseline;padding-bottom:11px;border-bottom:1px solid var(--line)}
+  .head.tight{margin-top:28px}
+  .row{display:flex;align-items:center;gap:12px;padding:13px 0;border:0;border-bottom:1px solid var(--line);background:none;width:100%;text-align:left}
+  .row:active{background:var(--panel)}
+  .idx{font-family:var(--cinzel);font-size:10.5px;color:var(--dim);width:19px;flex-shrink:0;font-variant-numeric:tabular-nums}
+  .nm{flex:1;min-width:0}
+  .nm b{font-family:var(--cinzel);font-weight:400;font-size:14.5px;display:block;overflow-wrap:anywhere}
+  .nm .track{display:block;height:2px;background:var(--line);margin-top:7px;overflow:hidden}
+  .nm .track i{display:block;height:100%;width:0;background:var(--dim);transition:width 1s ease}
+  .nm .track i.on{background:var(--blood)}
+  .nm .track i.done{background:var(--green)}
+  .amt{font-family:var(--cinzel);font-size:11.5px;color:var(--dim);text-align:right;flex-shrink:0;font-variant-numeric:tabular-nums;min-width:52px}
+  .row.done b{color:var(--dim)}
+  .row.on .amt{color:var(--blood)}
+
+  footer{margin-top:52px;padding-top:26px;border-top:1px solid var(--line);text-align:center}
+  footer a{color:var(--dim);text-decoration:none;font-size:11px;letter-spacing:.15em;text-transform:uppercase;margin:0 9px;border-bottom:1px solid transparent;padding-bottom:2px;display:inline-block}
+  footer a:hover{color:var(--bone);border-bottom-color:var(--blood)}
+  .stamp{margin-top:20px;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+  footer .stamp:first-child{margin-top:0}
+
+  /* the docked log button */
+  .dock{position:fixed;left:0;right:0;bottom:0;z-index:10;padding:30px 22px calc(16px + env(safe-area-inset-bottom,0px));background:linear-gradient(to bottom,transparent,var(--black) 44%);pointer-events:none}
+  .dock .go{pointer-events:auto;display:block;max-width:476px;margin:0 auto}
+  .go{width:100%;margin-top:30px;padding:17px;background:var(--blood);color:var(--white);border:none;font-family:var(--cinzel);font-weight:600;font-size:15px;letter-spacing:.18em;text-indent:.18em}
+  .go:active{opacity:.82}
+  .go:disabled{opacity:.4}
+
+  /* forms, as on the log page */
+  label,.lab{display:block;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin:24px 0 8px}
+  select,input{width:100%;min-height:48px;background:var(--panel);border:1px solid var(--line);color:var(--bone);font-size:16px;padding:13px 14px;outline:none;font-family:var(--label);-webkit-appearance:none;appearance:none}
+  select:focus,input:focus{border-color:var(--blood)}
+  select:focus-visible,input:focus-visible{outline:none}
+  input.bad{border-color:var(--blood)}
+  input::placeholder{color:var(--faint)}
+  .hold::placeholder{color:var(--bone);opacity:1}
+  .hold:focus::placeholder{opacity:.3}
+  input.reps{font-family:var(--cinzel);font-weight:900;font-size:44px;text-align:center;padding:14px;color:var(--bone);font-variant-numeric:tabular-nums}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .two>div{min-width:0}
+  .two select,.two input{height:48px}
+  .msg{margin-top:16px;padding:13px;text-align:center;font-size:13px;border:1px solid var(--line)}
+  .msg:empty{display:none}
+  .msg.err{border-color:var(--blood);color:var(--err)}
+
+  /* the name box and the button that locks it in */
+  .whorow{display:flex;gap:8px}
+  .whorow input{flex:1;min-width:0}
+  .lock{flex:0 0 54px;display:grid;place-items:center;min-height:48px;background:var(--blood);border:0;color:var(--white)}
+  .lock:active{opacity:.82}
+  .lock svg{width:18px;height:14px;display:block}
+
+  /* build your challenge: three ways to add, then what he has added */
+  .adds{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  .adds.below{margin-top:20px}
+  .pick{position:relative;display:flex;align-items:center;justify-content:center;gap:6px;min-height:48px;margin:0;padding:6px 4px;background:none;border:1px solid var(--line);color:var(--bone);font-size:10px;letter-spacing:.12em;text-transform:uppercase;text-align:center;line-height:1.35;cursor:pointer}
+  .pick:active{background:var(--line)}
+  .pick:focus-within{border-color:var(--blood)}
+  .pick .cv{width:7px;height:4.4px;flex-shrink:0;color:var(--dim)}
+  .pick select{position:absolute;inset:0;width:100%;height:100%;min-height:0;padding:0;border:0;opacity:0;font-size:16px;cursor:pointer;-webkit-appearance:auto;appearance:auto}
+  .adds.nudge .pick{border-color:var(--blood)}
+  .it{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+  .it .itname{flex:1;min-width:0;font-family:var(--cinzel);font-size:14.5px;line-height:1.3;overflow-wrap:anywhere}
+  .it .itn{flex:1;min-width:0;width:auto;min-height:44px;padding:9px 12px}
+  .it .itt{flex:0 0 92px;width:92px;min-height:44px;padding:9px 4px;text-align:center;font-family:var(--cinzel);font-weight:600;font-variant-numeric:tabular-nums}
+
+  /* keep-it card */
+  .keep{margin-top:22px;border:1px solid var(--line);background:var(--panel);padding:16px 16px 16px;position:relative}
+  .keep .k{font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--bone);padding-right:34px;line-height:1.5}
+  .steps{margin-top:12px;font-size:13px;line-height:1.9;color:var(--bone)}
+  .steps .sep{margin:0 7px;color:var(--dim)}
+  .steps svg{width:17px;height:4px;vertical-align:middle;color:var(--bone)}
+  .ghost{display:block;margin-top:14px;width:100%;padding:14px;background:none;border:1px solid var(--line);color:var(--bone);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase}
+  .ghost:active{background:var(--line)}
+  .x{position:absolute;right:-12px;top:50%;margin-top:-22px;width:44px;height:44px;background:none;border:0;color:var(--dim);font-size:24px;line-height:1;font-family:var(--label)}
+  .keep .x{right:0;top:0;margin-top:0}
+
+  /* panels */
+  .panel{position:fixed;inset:0;z-index:20;background:var(--black);overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;transform:translateY(100%);transition:transform .28s cubic-bezier(.2,.8,.2,1)}
+  .panel.open{transform:none}
+  .pin{max-width:460px;margin-inline:auto;padding-inline:20px;padding-block:calc(8px + env(safe-area-inset-top,0px)) calc(48px + env(safe-area-inset-bottom,0px))}
+  .ptop{position:relative;padding:17px 36px 15px;border-bottom:1px solid var(--line);text-align:center}
+  .ptop h2{font-family:var(--cinzel);font-weight:900;font-size:17px;letter-spacing:.2em;text-indent:.2em;line-height:1.3;overflow-wrap:anywhere}
+  .now{margin-top:12px;text-align:center;font-family:var(--cinzel);font-size:13px;line-height:1.5;color:var(--dim)}
+  .pin label,.pin .lab{margin-top:20px}
+  .pin .go{margin-top:24px}
+  .now b{color:var(--bone);font-weight:600}
+  .now .r{color:var(--blood)}
+  .hist .hrow{display:flex;align-items:center;gap:12px;padding:6px 0;border-bottom:1px solid var(--line);font-family:var(--cinzel);font-size:13px}
+  .hrow .d{flex:1;color:var(--dim)}
+  .hrow .qn{font-variant-numeric:tabular-nums}
+  .rm{flex-shrink:0;width:40px;height:40px;margin-right:-12px;background:none;border:0;color:var(--dim);font-size:20px;line-height:1;font-family:var(--label)}
+  .danger{display:block;margin-top:36px;width:100%;padding:14px;background:none;border:1px solid var(--line);color:var(--err);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase}
+  .danger.arm{background:var(--blood);border-color:var(--blood);color:var(--white)}
+  .linkbox{padding:13px 14px;border:1px solid var(--line);background:var(--panel);font-size:13px;line-height:1.5;color:var(--bone);overflow-wrap:anywhere;user-select:all;-webkit-user-select:all}
+
+  /* a line finished */
+  .donep{position:relative;min-height:72vh;min-height:72dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding-top:44px}
+  .donep .x{top:0;margin-top:0}
+  .donep .dn{font-family:var(--cinzel);font-weight:600;font-size:15px;letter-spacing:.2em;text-indent:.2em;line-height:1.4;overflow-wrap:anywhere;max-width:100%}
+  .donep .dnum{margin-top:26px;font-family:var(--cinzel);font-weight:900;font-size:clamp(66px,21vw,104px);line-height:.9;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+  .donep .dnum.long{font-size:clamp(46px,14.5vw,76px)}
+  .donep .drule{width:34px;height:2px;background:var(--green);margin:30px auto 0}
+  .donep .dk{margin-top:34px;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}
+  .donep .dv{margin-top:9px;font-family:var(--cinzel);font-weight:600;font-size:26px;font-variant-numeric:tabular-nums}
+  .donep .dv span{color:var(--dim);font-size:15px}
+
+  /* toast */
+  .toast{position:fixed;left:22px;right:22px;bottom:calc(96px + env(safe-area-inset-bottom,0px));z-index:11;max-width:476px;margin-inline:auto;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:6px 8px 6px 14px;min-height:46px;border:1px solid var(--green);background:var(--panel);color:var(--ok);font-size:13px;opacity:0;transform:translateY(8px);pointer-events:none;transition:opacity .2s,transform .2s}
+  .toast.show{opacity:1;transform:none;pointer-events:auto}
+  .toast span{min-width:0;overflow-wrap:anywhere}
+  .toast button{flex-shrink:0;background:none;border:0;color:var(--bone);font-size:10px;letter-spacing:.16em;text-transform:uppercase;padding:10px 6px}
+  .toast button u{text-decoration:none;border-bottom:1px solid var(--blood);padding-bottom:2px}
+
+  /* one line and nothing else: loading, or a link that cannot be opened */
+  .boot{display:block;width:100%;padding:70px 0;background:none;border:0;text-align:center;color:var(--dim);font-size:12px;letter-spacing:.14em;text-transform:uppercase;line-height:1.7}
+  .stamp.warn{color:var(--err)}
+
+  @media (prefers-reduced-motion:reduce){
+    .panel,.toast,.bar span,.nm .track i{transition:none}
+  }
+</style>
+
+<div class="wrap">
+  <div class="mast">
+    <h1 id="brand">KATA WARRIOR</h1>
+    <div class="rule"></div>
+    <button type="button" class="who" id="who" data-act="who" hidden></button>
+    <button type="button" class="more" id="more" data-act="menu" aria-label="Menu" hidden>
+      <svg viewBox="0 0 18 4" aria-hidden="true"><circle cx="2" cy="2" r="2" fill="currentColor"/><circle cx="9" cy="2" r="2" fill="currentColor"/><circle cx="16" cy="2" r="2" fill="currentColor"/></svg>
+    </button>
+  </div>
+
+  <div id="app"></div>
+
+  <footer>
+    <a href="https://katawarrior.com" target="_blank" rel="noopener">katawarrior.com</a>
+    <div class="stamp" id="stamp" data-act="sync"></div>
+  </footer>
+</div>
+
+<div class="dock" id="dock" hidden><button type="button" class="go" data-act="log" id="logBtn">LOG REPS</button></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="panel" id="panel" hidden><div class="pin" id="pin"></div></div>
+
+<script>
+(function(){
+'use strict';
+
+/* ---------------------------------------------------------------
+   SETTINGS
+--------------------------------------------------------------- */
+const API   = '@@API@@';       // the backend's web address. Empty: the count is kept on this device only.
+const SITE  = 'https://katawarrior.com';
+const KEY   = 'kw.count.v1';
+const MAX_LINES = 40, MAX_NAME = 40;
+const MAX_TARGET = 99999;      // a line's number: up to five digits
+const MAX_REPS   = 9999;       // one log entry: up to four digits
+
+/* The kata menu. Names and order exactly as katawarrior.com lists them. */
+const TWENTY = ['Bassai','Empi','Gankaku','Hangetsu','Heian Godan','Heian Nidan','Heian Sandan','Heian Shodan','Heian Yodan','Jion','Jitte','Kwanku','Naifanchi No Sai','Nicho Sai','Sakagawa','Sanchin','Sancho Sai','Tekki Nidan','Tekki Sandan','Tekki Shodan'];
+/* The drills menu: the basics (kihon). The sixteen techniques are the ones SKA Kansas City lists as kihon
+   (kc.ska.org/kihon-basic-techniques). English names follow the Shotokan Karate of America glossary (ska.org/glossary),
+   except oi-zuki, which keeps Kevin's own "front punches" (SKA San Diego also says front punch; the glossary says lunge punch).
+   oi-zuki, gyaku-zuki, maete, uraken / gedan-barai, age-uke, ude-uke, tetsui-uke, shuto-uke /
+   mae-geri, yoko-geri keage, yoko-geri kekomi, mawashi-geri, ushiro-geri, mikazuki-geri, fumikomi. */
+const DRILLS = ['Front punches','Reverse punches','Jabs','Back-fist strikes',
+  'Downward blocks','Rising blocks','Forearm blocks','Hammer blocks','Knife-hand blocks',
+  'Front kicks','Side-up kicks','Side-thrust kicks','Round kicks','Rear kicks','Crescent kicks','Stamping kicks'];
+const WORDS  = ['Zero','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen','Twenty'];
+
+/* ---------------------------------------------------------------
+   EVERY WORD ON THE SCREEN
+   To change a word, change it here and nowhere else.
+   The first block is Kevin's: lifted from katawarrior.com, or given by him on 4 Oct 2026.
+   The second block is stand-ins, waiting for his words.
+--------------------------------------------------------------- */
+const COPY = {
+  brand:'KATA WARRIOR',
+  of:'OF',
+  pctComplete:'% complete',
+  remaining:'remaining',
+  inTraining:'In Training',
+  formsComplete:'Forms Complete',
+  theTwenty:'The Twenty',
+  logged:'logged',
+  log:'LOG',
+  logReps:'LOG REPS',
+  form:'Form',
+  reps:'Reps',
+  date:'Date',
+  pickForm:'Pick a form',
+  enterReps:'Enter reps',
+  updated:'Updated',                        // "Updated Oct 4, 2026", as on katawarrior.com: the last time the count was saved
+  loading:'Loading',                        // as on katawarrior.com
+  cantLoad:'Could not load',                // as on his log page
+  customize:'Customize your tracker',       // top of the first screen
+  who:"Warrior's Name",                     // over the name box, first screen and menu
+  build:'Build your challenge',             // over the three add buttons
+  addKata:'Add kata',
+  addDrills:'Add drills',
+  addOther:'Add other',
+  other:'Other',                            // last choice in both menus; also labels a custom line
+  kata:'Kata',                              // labels a kata's name in the editor
+  drill:'Drill',                            // labels a drill's name in the editor
+
+  /* stand-ins */
+  phKata:'Custom form',                     // hint inside an empty name box
+  phDrill:'Custom drill',
+  phOther:'Custom item',
+  begin:'BEGIN',
+  keepTitle:'Put it on your Home Screen',
+  copyLink:'Copy my link',
+  listHead:'The',                           // followed by a number word: The One ... The Twenty
+  undo:'Undo',
+  save:'SAVE',
+  del:'Delete',
+  delArm:'Tap again to delete',
+  startOver:'Start over',
+  startOverArm:'Tap again to erase everything',
+  linkLabel:'Your link',
+  homeLabel:'Home Screen',
+  unsaved:'Not saved yet',                  // at the foot, when a change has not reached the backend
+  noLink:'Open this page from your own link',   // the page was opened with no link of his
+  badLink:'This link is not active'         // the link is not a paid checkout
+};
+
+/* The three kinds of line. Each has an add button, a label for its name, and a hint for a typed name. */
+const KINDS = {
+  kata:  {add:'addKata',   label:'kata',  ph:'phKata',  menu:TWENTY},
+  drill: {add:'addDrills', label:'drill', ph:'phDrill', menu:DRILLS},
+  other: {add:'addOther',  label:'other', ph:'phOther', menu:null}
+};
+function kindOf(k){return KINDS[k]?k:'other';}
+
+/* ---------------------------------------------------------------
+   SMALL TOOLS
+--------------------------------------------------------------- */
+const $ = id => document.getElementById(id);
+function esc(s){const d=document.createElement('div');d.textContent=s==null?'':s;return d.innerHTML;}
+function attr(s){return esc(s).replace(/"/g,'&quot;');}
+function T(k){return esc(COPY[k]);}       // a word, safe to put in the page
+function P(k){return COPY[k];}            // a word, as plain text
+function fmt(n){return Number(n).toLocaleString('en-US');}
+function uid(){return Math.random().toString(36).slice(2,8);}
+function ymd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function today(){return ymd(new Date());}
+function niceDate(s){
+  const p=String(s).split('-').map(Number);
+  if(p.length!==3||p.some(isNaN))return s;
+  const o={month:'short',day:'numeric'};
+  if(p[0]!==new Date().getFullYear())o.year='numeric';
+  return new Date(p[0],p[1]-1,p[2]).toLocaleDateString('en-US',o);
+}
+function hasName(list,name){const k=String(name).trim().toLowerCase();return list.some(x=>String(x.name).trim().toLowerCase()===k);}
+const DOTS='<svg viewBox="0 0 18 4" aria-hidden="true"><circle cx="2" cy="2" r="2" fill="currentColor"/><circle cx="9" cy="2" r="2" fill="currentColor"/><circle cx="16" cy="2" r="2" fill="currentColor"/></svg>';
+const CHEV='<svg class="cv" viewBox="0 0 8 5" aria-hidden="true"><path d="M0 0h8L4 5z" fill="currentColor"/></svg>';
+const TICK='<svg viewBox="0 0 18 14" aria-hidden="true"><path d="M1.5 7.5l5 5 10-11" fill="none" stroke="currentColor" stroke-width="2.2"/></svg>';
+/* A number box always starts empty. The number it holds shows in the box until he types, so there is
+   never an old number sitting in the way of the new one: tap, type, done. Leaving it empty keeps the old number.
+   It is a text box that asks the phone for its number pad; digits only. */
+function numBox(id,cls,current,max,extra){
+  const c=String(current==null?'':current);
+  return '<input type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done" class="num hold'+(cls?' '+cls:'')+'" id="'+id+'" maxlength="'+String(max).length+'" data-max="'+max+'" data-val="'+attr(c)+'" placeholder="'+attr(c)+'" value=""'+(extra?' '+extra:'')+'>';
+}
+function numOf(el){return el.value!==''?el.value:(el.getAttribute('data-val')||'');}
+function digits(v,maxLen){return String(v).replace(/\D+/g,'').replace(/^0+(?=\d)/,'').slice(0,maxLen);}
+const calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const standalone = window.navigator.standalone===true || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+const android = /Android/i.test(navigator.userAgent);
+
+/* ---------------------------------------------------------------
+   THE COUNT, AND WHERE IT IS KEPT
+   A line is one thing being counted: a kata, a drill, or something else. The log is every entry made.
+--------------------------------------------------------------- */
+function blank(){return {v:1,who:'',lines:[],log:[],ui:{}};}
+function clean(s){
+  if(!s||typeof s!=='object'||!Array.isArray(s.lines)||!Array.isArray(s.log))return null;
+  const seen={};
+  const lines=s.lines.filter(l=>l&&typeof l.id==='string'&&typeof l.name==='string'&&l.name.trim()&&Number(l.target)>=1&&!seen[l.id]&&(seen[l.id]=1))
+    .slice(0,MAX_LINES).map(l=>({id:l.id,name:l.name.trim().slice(0,MAX_NAME),target:Math.min(MAX_TARGET,Math.round(Number(l.target))),kind:kindOf(l.kind)}));
+  const live={};lines.forEach(l=>{live[l.id]=1;});
+  const log=s.log.filter(e=>e&&live[e.l]&&Number(e.r)>=1&&/^\d{4}-\d{2}-\d{2}$/.test(e.d))
+    .map(e=>({id:String(e.id),l:e.l,r:Math.min(MAX_REPS,Math.round(Number(e.r))),d:e.d,t:Number(e.t)||0}))
+    .sort((a,b)=>a.t-b.t);
+  return {v:1,who:(typeof s.who==='string')?s.who.trim().slice(0,MAX_NAME):'',lines:lines,log:log,ui:(s.ui&&typeof s.ui==='object')?s.ui:{}};
+}
+/* What goes to the backend is the count itself. What belongs to one device (ui) stays on it. */
+function core(s){return {v:1,who:s.who,lines:s.lines,log:s.log};}
+
+/* His private link carries his code: katawarrior.com/tracker.html?k=<code>. It is his key to his own row.
+   If the page is opened without it, the last code the backend opened on this device is put back,
+   so the address stays his link. */
+function readCode(){
+  const ok=c=>/^cs_(test|live)_[A-Za-z0-9]{10,200}$/.test(c||'');
+  let c='';
+  try{c=new URLSearchParams(window.location.search).get('k')||'';}catch(e){}
+  if(ok(c))return c;
+  try{c=window.localStorage.getItem(KEY+'.code')||'';}catch(e){c='';}
+  if(ok(c)){try{window.history.replaceState(null,'',window.location.pathname+'?k='+c);}catch(e){}return c;}
+  return '';
+}
+const CODE = API ? readCode() : '';
+const LKEY = (API&&CODE) ? KEY+':'+CODE : KEY;      // each code keeps its own copy on the device
+
+let memory=null;
+const Store={
+  read(){
+    try{const raw=window.localStorage.getItem(LKEY);if(raw)return JSON.parse(raw);}catch(e){}
+    return memory;
+  },
+  write(rec){
+    memory=rec;
+    try{window.localStorage.setItem(LKEY,JSON.stringify(rec));}catch(e){}
+  }
+};
+/* What this device has kept: the count, and where it stood with the backend. */
+function readLocal(){
+  const rec=Store.read();
+  if(!rec||typeof rec!=='object')return null;
+  const st=clean(rec.s||rec);                           // an older copy held the count alone
+  if(!st)return null;
+  const b=rec.b?clean(rec.b):null;
+  return {s:st,b:b?core(b):null,rev:Math.max(0,Math.floor(Number(rec.rev))||0),dirty:!!rec.dirty,at:Number(rec.at)||0};
+}
+
+function derive(s){
+  const sum={};
+  s.log.forEach(e=>{sum[e.l]=(sum[e.l]||0)+e.r;});
+  let total=0,target=0,done=0;
+  const lines=s.lines.map((l,i)=>{
+    const logged=sum[l.id]||0,complete=logged>=l.target;
+    total+=logged;target+=l.target;if(complete)done++;
+    return {id:l.id,name:l.name,target:l.target,kind:l.kind,order:i+1,logged:logged,complete:complete,pct:Math.min(100,logged/l.target*100)};
+  });
+  /* In training: the line logged most recently that is not finished. Same rule as Kevin's own tracker. */
+  let cur=null;
+  for(let i=s.log.length-1;i>=0&&!cur;i--){
+    const l=lines.find(x=>x.id===s.log[i].l);
+    if(l&&!l.complete)cur=l;
+  }
+  if(!cur)cur=lines.find(x=>!x.complete)||null;
+  return {lines:lines,total:total,target:target,done:done,cur:cur,left:Math.max(0,target-total),pct:target?Math.min(100,total/target*100):0};
+}
+
+/* ---------------------------------------------------------------
+   SCREEN
+--------------------------------------------------------------- */
+const app=$('app'),dock=$('dock'),panel=$('panel'),pin=$('pin'),toastEl=$('toast');
+let S=blank();
+let shown={total:0,pct:0,lines:{}};      // what is on screen now, so changes animate from it
+let setup=freshSetup('');                // the first screen, until he taps BEGIN
+let toastTimer=0,armTimer=0;
+let onClose=null;                        // runs once, when the open panel closes
+let gated=null;                          // one line is on screen instead of the count: loading, or a link that cannot be opened
+let wantRender=false;                    // the count changed while he was typing; redraw when he is done
+
+/* Where this device stands with the backend. */
+let rev=0;                               // the save number the backend last gave it
+let base=null;                           // the count as the backend has it, as far as this device knows
+let dirty=false;                         // he has changed something the backend does not have yet
+let since=0;                             // when that began
+let savedAt=0;                           // the last time the two agreed
+let busy=false,fails=0,pushTimer=0,lastPull=0;
+
+function freshSetup(who){return {who:who||'',locked:!!who,items:[]};}   // locked: his name is set and its box is put away
+
+/* Every change he makes comes through here: kept on the device at once, sent to the backend a moment later. */
+function keep(){
+  if(API&&gated)return;                    // nothing is kept for a link the backend has not opened
+  Store.write(API?{v:2,s:S,b:base,rev:rev,dirty:dirty,at:savedAt}:{v:2,s:S});
+}
+function commit(){
+  if(API&&!dirty){dirty=true;since=Date.now();}
+  keep();
+  if(API){soon(900);setTimeout(paintStamp,7000);}
+}
+
+function countTo(el,from,to,ms){
+  cancelAnimationFrame(el._count||0);
+  if(calm||from===to){el.textContent=fmt(to);return;}
+  const t0=performance.now();
+  (function step(t){
+    const k=Math.min(1,(t-t0)/ms);
+    el.textContent=fmt(Math.round(from+(to-from)*(1-Math.pow(1-k,3))));
+    if(k<1)el._count=requestAnimationFrame(step);
+  })(t0);
+}
+
+function stepsHTML(){
+  const sep='<span class="sep">&rsaquo;</span>';
+  return android
+    ? '<div class="steps">&#8942;'+sep+'Add to Home screen'+sep+'Add</div>'
+    : '<div class="steps">'+DOTS+sep+'Share'+sep+'Add to Home Screen'+sep+'Add</div>';
+}
+
+/* The three add buttons. Kata and drills open a menu; the third opens a box to type in.
+   Each menu is a real <select> laid invisibly over its button, so the phone shows its own menu. */
+function menuHTML(kind){
+  return '<option value="" selected disabled>'+esc(P(KINDS[kind].add))+'</option>'+
+    (kind==='kata'?'<option value="__twenty">'+esc(P('theTwenty'))+'</option>':'')+
+    KINDS[kind].menu.map(n=>'<option value="'+attr(n)+'">'+esc(n)+'</option>').join('')+
+    '<option value="__other">'+esc(P('other'))+'</option>';
+}
+function addBarHTML(cls){
+  return '<div class="adds'+(cls?' '+cls:'')+'">'+
+    ['kata','drill'].map(k=>
+      '<label class="pick"><span>'+T(KINDS[k].add)+'</span>'+CHEV+
+        '<select data-add="'+k+'" aria-label="'+attr(P(KINDS[k].add))+'">'+menuHTML(k)+'</select></label>').join('')+
+    '<button type="button" class="pick" data-act="addOther"><span>'+T('addOther')+'</span></button>'+
+  '</div>';
+}
+
+function setupTotal(){
+  return setup.items.reduce((a,it)=>{const v=Number(it.target);return a+(Number.isFinite(v)&&v>0?Math.round(v):0);},0);
+}
+
+function renderSetup(){
+  const n=setup.items.length;
+  const rows=setup.items.map((it,i)=>{
+    const ph=attr(P(KINDS[it.kind].ph));
+    return '<div class="it">'+
+      '<span class="idx">'+(i+1)+'</span>'+
+      (it.typed
+        ? '<input type="text" class="itn" id="itn'+i+'" data-i="'+i+'" data-f="name" maxlength="'+MAX_NAME+'" autocomplete="off" autocapitalize="words" enterkeyhint="next" value="'+attr(it.name)+'" placeholder="'+ph+'" aria-label="'+ph+'">'
+        : '<span class="itname">'+esc(it.name)+'</span>')+
+      numBox('itt'+i,'itt',it.target,MAX_TARGET,'data-i="'+i+'" data-f="target" aria-label="'+attr(P('of'))+'"')+
+      '<button type="button" class="rm" data-act="rmItem" data-i="'+i+'" aria-label="Remove">&times;</button>'+
+    '</div>';
+  }).join('');
+  app.innerHTML=
+    '<p class="intro">'+T('customize')+'</p>'+
+    (setup.locked?'':
+      '<label for="suWho">'+T('who')+'</label>'+
+      '<div class="whorow">'+
+        '<input type="text" id="suWho" maxlength="'+MAX_NAME+'" autocomplete="name" autocapitalize="words" enterkeyhint="done" value="'+attr(setup.who)+'">'+
+        '<button type="button" class="lock" data-act="lockWho" aria-label="'+attr(P('who'))+'">'+TICK+'</button>'+
+      '</div>')+
+    '<div class="lab">'+T('build')+'</div>'+
+    addBarHTML('')+
+    (n?'<div class="head tight">'+listHead(n)+'<span id="suTotal">'+T('of')+' '+fmt(setupTotal())+'</span></div>'+rows:'')+
+    '<button type="button" class="go" data-act="begin">'+T('begin')+'</button>';
+}
+
+function listHead(n){
+  return '<span>'+esc(P('listHead')+' '+(n<WORDS.length?WORDS[n]:n))+'</span>';
+}
+
+function renderMain(d){
+  const from=shown;
+  let rows='';
+  d.lines.forEach(l=>{
+    const on=d.cur&&d.cur.id===l.id;
+    const cls=l.complete?'done':(on?'on':'');
+    const was=from.lines[l.id]||0;
+    rows+=
+      '<button type="button" class="row '+cls+'" data-act="line" data-id="'+attr(l.id)+'">'+
+        '<span class="idx">'+l.order+'</span>'+
+        '<span class="nm"><b>'+esc(l.name)+'</b>'+
+          '<span class="track"><i class="'+cls+'" style="width:'+was.toFixed(2)+'%" data-w="'+l.pct.toFixed(2)+'"></i></span>'+
+        '</span>'+
+        '<span class="amt">'+(l.logged>0?fmt(l.logged)+' / '+fmt(l.target):'&mdash;')+'</span>'+
+      '</button>';
+  });
+  const keep=(!S.ui.kept&&!standalone)
+    ? '<div class="keep"><div class="k">'+T('keepTitle')+'</div>'+stepsHTML()+
+        '<button type="button" class="ghost" data-act="copyLink">'+T('copyLink')+'</button>'+
+        '<button type="button" class="x" data-act="keepDone" aria-label="Close">&times;</button></div>'
+    : '';
+
+  app.innerHTML=
+    keep+
+    '<div class="count"><div class="n'+(d.target>=100000?' long':'')+'" id="bigN">'+fmt(from.total)+'</div>'+
+      '<div class="of">'+T('of')+' '+fmt(d.target)+'</div></div>'+
+    '<div class="bar"><span id="fill" style="width:'+from.pct.toFixed(2)+'%" data-w="'+d.pct.toFixed(2)+'"></span></div>'+
+    '<div class="barfoot"><span>'+d.pct.toFixed(1)+T('pctComplete')+'</span><span>'+fmt(d.left)+' '+T('remaining')+'</span></div>'+
+    '<div class="pair">'+
+      '<div class="cell"><div class="k">'+T('inTraining')+'</div>'+
+        (d.cur
+          ? '<div class="v">'+esc(d.cur.name)+'</div><div class="v sub">'+fmt(d.cur.logged)+' / '+fmt(d.cur.target)+'</div>'
+          : '<div class="v">&mdash;</div>')+
+      '</div>'+
+      '<div class="cell"><div class="k">'+T('formsComplete')+'</div>'+
+        '<div class="v big">'+d.done+'<span> / '+d.lines.length+'</span></div></div>'+
+    '</div>'+
+    '<div class="head">'+listHead(d.lines.length)+'<span>'+fmt(d.total)+' '+T('logged')+'</span></div>'+
+    rows+
+    (d.lines.length<MAX_LINES?addBarHTML('below'):'');
+
+  void app.offsetWidth;                                   // let the starting widths land before moving them
+  app.querySelectorAll('[data-w]').forEach(el=>{el.style.width=el.getAttribute('data-w')+'%';});
+  countTo($('bigN'),from.total,d.total,from.total===0?1300:700);
+
+  const now={total:d.total,pct:d.pct,lines:{}};
+  d.lines.forEach(l=>{now.lines[l.id]=l.pct;});
+  shown=now;
+}
+
+function render(){
+  if(gated)return;
+  const has=S.lines.length>0;
+  dock.hidden=!has;
+  $('more').hidden=!has;
+  if(has){renderMain(derive(S));}
+  else{shown={total:0,pct:0,lines:{}};renderSetup();}
+  paintWho();
+}
+
+/* His name, under KATA WARRIOR. On the first screen it follows the box as he types. */
+function paintWho(){
+  const w=String(S.lines.length?S.who:setup.who).trim().slice(0,MAX_NAME);
+  const el=$('who');
+  el.textContent=w;el.hidden=!w;
+}
+
+/* ---------------------------------------------------------------
+   ADDING TO THE CHALLENGE
+   On the first screen a pick is held in a list until BEGIN. After that it goes straight into his count.
+--------------------------------------------------------------- */
+function addPicked(kind,value){
+  const first=!S.lines.length;
+  if(value==='__other'){if(first)stage(kind);else openLine(null,kind);return;}
+  const names=value==='__twenty'?TWENTY:[value];
+  if(first){
+    names.forEach(n=>{
+      if(!hasName(setup.items,n)&&setup.items.length<MAX_LINES)setup.items.push({name:n,target:'500',kind:kind,typed:false});
+    });
+    renderSetup();lastIntoView();
+  }else{
+    let added=0;
+    names.forEach(n=>{
+      if(!hasName(S.lines,n)&&S.lines.length<MAX_LINES){S.lines.push({id:uid(),name:n,target:500,kind:kind});added++;}
+    });
+    if(added){commit();render();}
+  }
+}
+/* First screen: a row with an empty box for a name he types himself. */
+function stage(kind){
+  if(setup.items.length>=MAX_LINES)return;
+  setup.items.push({name:'',target:'500',kind:kindOf(kind),typed:true});
+  renderSetup();
+  const el=$('itn'+(setup.items.length-1));
+  if(el){try{el.focus();}catch(e){}}
+  lastIntoView();
+}
+function lastIntoView(){
+  const rows=app.querySelectorAll('.it');
+  if(rows.length&&rows[rows.length-1].scrollIntoView)rows[rows.length-1].scrollIntoView({block:'nearest'});
+}
+function nudge(){
+  const el=app.querySelector('.adds');if(!el)return;
+  el.classList.add('nudge');setTimeout(()=>{el.classList.remove('nudge');},1200);
+}
+
+/* ---------------------------------------------------------------
+   PANELS
+--------------------------------------------------------------- */
+function openPanel(html){
+  pin.innerHTML=html;
+  panel.hidden=false;
+  document.body.classList.add('lock');
+  void panel.offsetWidth;
+  panel.classList.add('open');
+  panel.scrollTop=0;
+}
+function closePanel(){
+  if(panel.hidden)return;
+  if(document.activeElement&&panel.contains(document.activeElement))document.activeElement.blur();
+  panel.classList.remove('open');
+  document.body.classList.remove('lock');
+  setTimeout(()=>{if(!panel.classList.contains('open')){panel.hidden=true;pin.innerHTML='';}},calm?0:300);
+  const f=onClose;onClose=null;if(f)f();
+}
+function ptop(title){
+  return '<div class="ptop"><h2>'+title+'</h2><button type="button" class="x" data-act="close" aria-label="Close">&times;</button></div>';
+}
+
+function nowLine(d,l){
+  return (l?'<b>'+esc(l.name)+'</b> &nbsp;<span class="r">'+fmt(l.logged)+' / '+fmt(l.target)+'</span><br>':'')+
+    fmt(d.total)+' of '+fmt(d.target);
+}
+
+function openLog(){
+  const d=derive(S);if(!d.lines.length)return;
+  const pick=d.cur||d.lines[0];
+  const many=d.lines.length>1;
+  const opts=d.lines.map(l=>'<option value="'+attr(l.id)+'"'+(l.id===pick.id?' selected':'')+'>'+esc(l.name)+(l.complete?'  \u2713':'')+'</option>').join('');
+  const dateField='<div><label for="lgDate">'+T('date')+'</label><input type="date" id="lgDate" value="'+today()+'" max="'+today()+'"></div>';
+  openPanel(
+    ptop(T('log'))+
+    '<div class="now" id="lgNow">'+nowLine(d,pick)+'</div>'+
+    (many
+      ? '<div class="two"><div><label for="lgForm">'+T('form')+'</label><select id="lgForm">'+opts+'</select></div>'+dateField+'</div>'
+      : '<input type="hidden" id="lgForm" value="'+attr(pick.id)+'">'+dateField)+
+    '<label for="lgReps">'+T('reps')+'</label>'+
+    '<input type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done" class="num reps" id="lgReps" maxlength="'+String(MAX_REPS).length+'" placeholder="0">'+
+    '<button type="button" class="go" data-act="doLog">'+T('logReps')+'</button>'+
+    '<div class="msg" id="lgMsg" role="alert"></div>'
+  );
+  try{$('lgReps').focus({preventScroll:true});}catch(e){}
+}
+
+function doLog(){
+  const lineId=$('lgForm').value,raw=$('lgReps').value.trim(),msg=$('lgMsg');
+  const line=S.lines.find(l=>l.id===lineId);
+  const reps=Number(raw);
+  if(!line){msg.textContent=P('pickForm');msg.className='msg err';return;}
+  if(!raw||!Number.isInteger(reps)||reps<1||reps>MAX_REPS){msg.textContent=P('enterReps');msg.className='msg err';$('lgReps').focus();return;}
+  let date=$('lgDate').value;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||date>today())date=today();
+  const t=Date.now();
+  const entry={id:t.toString(36)+uid().slice(0,2),l:line.id,r:reps,d:date,t:t};
+  const before=derive(S).lines.find(l=>l.id===line.id).logged;
+  S.log.push(entry);commit();
+  closePanel();render();
+  const d=derive(S),after=d.lines.find(l=>l.id===line.id);
+  const said=()=>toast('<span>'+esc(line.name)+' \u2014 '+fmt(after.logged)+' '+T('logged')+'</span>'+
+    '<button type="button" data-act="undo" data-id="'+attr(entry.id)+'"><u>'+T('undo')+'</u></button>',7000);
+  if(before<line.target&&after.logged>=line.target){openDone(after,d,before);onClose=said;}
+  else said();
+}
+
+/* The moment a line reaches its number. No words but Kevin's. */
+function openDone(l,d,before){
+  openPanel(
+    '<div class="donep" data-act="close">'+
+      '<button type="button" class="x" data-act="close" aria-label="Close">&times;</button>'+
+      '<div class="dn">'+esc(l.name)+'</div>'+
+      '<div class="dnum'+(l.target>=100000?' long':'')+'" id="dNum">'+fmt(before)+'</div>'+
+      '<div class="drule"></div>'+
+      '<div class="dk">'+T('formsComplete')+'</div>'+
+      '<div class="dv">'+d.done+'<span> / '+d.lines.length+'</span></div>'+
+    '</div>'
+  );
+  countTo($('dNum'),before,l.target,900);
+}
+
+/* One line: its name, its number, what has been logged to it. With no id it is a new line of the given kind. */
+function openLine(id,kind){
+  const d=derive(S);
+  const l=id?d.lines.find(x=>x.id===id):null;
+  if(id&&!l)return;
+  const k=kindOf(l?l.kind:kind);
+  let hist='';
+  if(l){
+    const mine=S.log.filter(e=>e.l===l.id).slice().reverse();
+    if(mine.length){
+      hist='<div class="head"><span>'+T('logged')+'</span><span>'+fmt(l.logged)+' / '+fmt(l.target)+'</span></div><div class="hist">'+
+        mine.slice(0,60).map(e=>'<div class="hrow"><span class="d">'+esc(niceDate(e.d))+'</span><span class="qn">'+fmt(e.r)+'</span>'+
+          '<button type="button" class="rm" data-act="rmEntry" data-id="'+attr(e.id)+'" data-line="'+attr(l.id)+'" aria-label="Remove">&times;</button></div>').join('')+
+      '</div>';
+    }
+  }
+  openPanel(
+    ptop(l?esc(l.name):T(KINDS[k].add))+
+    '<label for="lnName">'+T(KINDS[k].label)+'</label>'+
+    '<input type="text" id="lnName" maxlength="'+MAX_NAME+'" autocomplete="off" autocapitalize="words" value="'+attr(l?l.name:'')+'" placeholder="'+attr(P(KINDS[k].ph))+'">'+
+    '<label for="lnTarget">'+T('of')+'</label>'+
+    numBox('lnTarget','',l?l.target:500,MAX_TARGET,'')+
+    '<button type="button" class="go" data-act="saveLine" data-id="'+attr(l?l.id:'')+'" data-kind="'+k+'">'+T('save')+'</button>'+
+    hist+
+    (l?'<button type="button" class="danger" data-act="delLine" data-id="'+attr(l.id)+'" data-arm="delArm">'+T('del')+'</button>':'')
+  );
+  if(!l){try{$('lnName').focus({preventScroll:true});}catch(e){}}
+}
+
+function readLine(nameEl,targetEl){
+  const name=nameEl.value.trim().slice(0,MAX_NAME);
+  const target=Number(numOf(targetEl));
+  nameEl.classList.toggle('bad',!name);
+  const okT=Number.isInteger(target)&&target>=1&&target<=MAX_TARGET;
+  targetEl.classList.toggle('bad',!okT);
+  if(!name){nameEl.focus();return null;}
+  if(!okT){targetEl.focus();return null;}
+  return {name:name,target:target};
+}
+
+function saveLine(id,kind){
+  const v=readLine($('lnName'),$('lnTarget'));if(!v)return;
+  if(id){const l=S.lines.find(x=>x.id===id);if(l){l.name=v.name;l.target=v.target;}}
+  else if(S.lines.length<MAX_LINES){S.lines.push({id:uid(),name:v.name,target:v.target,kind:kindOf(kind)});}
+  commit();closePanel();render();
+}
+
+function openMenu(){
+  openPanel(
+    ptop(esc(P('brand')))+
+    '<label for="mnWho">'+T('who')+'</label>'+
+    '<input type="text" id="mnWho" maxlength="'+MAX_NAME+'" autocomplete="name" autocapitalize="words" enterkeyhint="done" value="'+attr(S.who)+'">'+
+    '<div class="lab">'+T('linkLabel')+'</div>'+
+    '<div class="linkbox" id="myLink">'+esc(myLink())+'</div>'+
+    '<button type="button" class="ghost" data-act="copyLink">'+T('copyLink')+'</button>'+
+    '<div class="lab">'+T('homeLabel')+'</div>'+stepsHTML()+
+    '<button type="button" class="danger" data-act="startOver" data-arm="startOverArm">'+T('startOver')+'</button>'
+  );
+}
+
+function myLink(){return (API&&CODE)?window.location.origin+window.location.pathname+'?k='+CODE:SITE+'/your-private-link';}
+
+function copyLink(btn){
+  const link=myLink(),was=btn.innerHTML;
+  const ok=()=>{btn.innerHTML='\u2713';setTimeout(()=>{btn.innerHTML=was;},1600);};
+  const pick=()=>{
+    if(!$('myLink'))openMenu();
+    const box=$('myLink');if(!box)return;
+    const r=document.createRange();r.selectNodeContents(box);
+    const sel=window.getSelection();sel.removeAllRanges();sel.addRange(r);
+  };
+  try{navigator.clipboard.writeText(link).then(ok,pick);}catch(e){pick();}
+}
+
+function toast(html,ms){
+  clearTimeout(toastTimer);
+  toastEl.innerHTML=html;toastEl.classList.add('show');
+  toastTimer=setTimeout(hideToast,ms||4000);
+}
+function hideToast(){clearTimeout(toastTimer);toastEl.classList.remove('show');}
+
+/* A button that erases something asks for a second tap instead of a pop-up. */
+function armed(btn){
+  if(btn.classList.contains('arm'))return true;
+  clearTimeout(armTimer);
+  const was=btn.innerHTML;
+  btn.classList.add('arm');btn.innerHTML=T(btn.getAttribute('data-arm'));
+  armTimer=setTimeout(()=>{btn.classList.remove('arm');btn.innerHTML=was;},4000);
+  return false;
+}
+
+/* ---------------------------------------------------------------
+   THE BACKEND
+   The count is saved on this device at once and sent to the backend a moment later.
+   The backend's copy is the one that survives a cleared browser, or a new phone.
+   If two devices change the same count, their changes are folded together; neither is overwritten.
+--------------------------------------------------------------- */
+function soon(ms){clearTimeout(pushTimer);pushTimer=setTimeout(push,ms);}
+function waitFor(n){return Math.min(60000,2000*Math.pow(2,Math.max(0,n-1)));}
+
+function call(payload,last){
+  const body=JSON.stringify(payload);
+  const ctl=window.AbortController?new AbortController():null;
+  const timer=setTimeout(()=>{if(ctl)ctl.abort();},25000);
+  const opt={method:'POST',body:body};                    // sent as plain text, so the browser asks no permission first
+  if(ctl)opt.signal=ctl.signal;
+  if(last&&body.length<60000)opt.keepalive=true;          // let it finish even as the page is put away
+  return fetch(API,opt)
+    .then(r=>{if(!r.ok)throw new Error('http '+r.status);return r.json();})
+    .then(j=>{clearTimeout(timer);return j;},e=>{clearTimeout(timer);throw e;});
+}
+
+/* Send his count up. */
+function push(last){
+  clearTimeout(pushTimer);
+  if(!API||busy||!dirty||gated)return;
+  busy=true;
+  const sent=JSON.stringify(core(S)),d=derive(S);
+  let reopen=false;
+  call({a:'save',k:CODE,rev:rev,data:sent,sum:{who:S.who,logged:d.total,of:d.target,lines:d.lines.length}},last===true)
+    .then(res=>{
+      if(res&&res.ok){
+        rev=res.rev;base=JSON.parse(sent);savedAt=Date.now();fails=0;
+        dirty=JSON.stringify(core(S))!==sent;if(dirty)since=Date.now();
+      }else if(res&&res.conflict){
+        fails=0;adopt(res.rev,res.data);
+      }else if(res&&res.error==='code'){
+        reopen=true;                                      // the backend has no row for this link: open it afresh, then send again
+      }else throw new Error((res&&res.error)||'server');
+    })
+    .catch(()=>{fails++;})
+    .then(()=>{
+      busy=false;keep();paintStamp();
+      if(reopen)pull(true);
+      else if(dirty)soon(fails?waitFor(fails):300);
+    });
+}
+
+/* Ask the backend for his count. */
+function pull(now){
+  if(!API||busy)return;
+  if(!now&&Date.now()-lastPull<30000)return;
+  lastPull=Date.now();
+  busy=true;
+  call({a:'load',k:CODE})
+    .then(res=>{
+      if(res&&res.ok){
+        const first=gated!==null;
+        gated=null;fails=0;
+        try{window.localStorage.setItem(KEY+'.code',CODE);}catch(e){}   // the backend opened this link: it is this device's link now
+        const drew=(first||res.rev!==rev)?adopt(res.rev,res.data):false;
+        if(!drew&&!dirty)savedAt=Date.now();
+        if(first&&!drew){setup=freshSetup(S.who);render();}   // a new buyer: nothing saved yet, so the first screen
+      }else if(res&&(res.error==='code'||res.error==='unpaid'||res.error==='closed')){
+        if(gated)gate('badLink');else fails++;            // a count already on this device stays usable
+      }else throw new Error((res&&res.error)||'server');
+    })
+    .catch(()=>{fails++;if(gated==='loading')gate('cantLoad');})
+    .then(()=>{
+      busy=false;keep();paintStamp();
+      if(dirty&&!gated)soon(fails?waitFor(fails):0);
+    });
+}
+
+/* The backend's copy has arrived. Take it, or fold this device's changes into it. */
+function adopt(theirRev,text){
+  let theirs=null;
+  try{theirs=text?clean(JSON.parse(text)):null;}catch(e){}
+  if(!theirs)theirs=blank();
+  const mine=core(S),was=JSON.stringify(mine);
+  let next;
+  if(theirRev<rev)next=mine;                              // the backend lost ground: this device's count stands, and goes back up
+  else if(dirty)next=merge3(base||core(blank()),mine,core(theirs));
+  else next=core(theirs);
+  base=core(theirs);rev=theirRev;savedAt=Date.now();
+  const ui=S.ui;
+  S=clean(next)||blank();S.ui=ui;
+  const now=JSON.stringify(core(S));
+  const wasDirty=dirty;
+  dirty=now!==JSON.stringify(base);
+  if(dirty&&!wasDirty)since=Date.now();
+  keep();
+  if(now!==was)refresh();
+  return now!==was;                                       // true when the screen was redrawn, or will be once he stops typing
+}
+
+/* Two devices changed the same count. Keep what each added; drop what each removed.
+   b: the count both started from. m: this device's. t: the backend's. */
+function merge3(b,m,t){
+  const ids=list=>{const o={};list.forEach(x=>{o[x.id]=x;});return o;};
+  const bl=ids(b.lines),ml=ids(m.lines),tl=ids(t.lines),lines=[];
+  t.lines.forEach(x=>{
+    const mine=ml[x.id],old=bl[x.id];
+    if(mine)lines.push({id:x.id,name:(old&&mine.name===old.name)?x.name:mine.name,target:(old&&mine.target===old.target)?x.target:mine.target,kind:mine.kind});
+    else if(!old)lines.push(x);                           // added on the other device. (If it was in the old copy, this device removed it.)
+  });
+  m.lines.forEach(x=>{if(!tl[x.id]&&!bl[x.id])lines.push(x);});      // added on this device
+  const be=ids(b.log),me=ids(m.log),te=ids(t.log),log=[];
+  t.log.forEach(x=>{if(me[x.id]||!be[x.id])log.push(x);});
+  m.log.forEach(x=>{if(!te[x.id]&&!be[x.id])log.push(x);});
+  return {v:1,who:(m.who!==b.who)?m.who:t.who,lines:lines,log:log};
+}
+
+/* The count changed underneath him. Redraw, but never while he is typing on the screen being redrawn. */
+function refresh(){
+  const a=document.activeElement;
+  if(a&&app.contains(a)&&(a.tagName==='INPUT'||a.tagName==='SELECT')){wantRender=true;return;}
+  wantRender=false;
+  if(!S.lines.length&&!setup.items.length)setup=freshSetup(S.who);
+  render();
+}
+
+/* One line and nothing else. */
+function gate(kind){
+  gated=kind;
+  dock.hidden=true;$('more').hidden=true;$('who').hidden=true;
+  const tap=(kind==='cantLoad'||kind==='badLink');
+  app.innerHTML=tap?'<button type="button" class="boot" data-act="retry">'+T(kind)+'</button>':'<div class="boot">'+T(kind)+'</div>';
+}
+
+/* The line at the foot: when the count was last saved, or that it has not been yet. */
+function paintStamp(){
+  const el=$('stamp');
+  const late=!!API&&dirty&&!gated&&(fails>0||Date.now()-since>6000);
+  el.classList.toggle('warn',late);
+  if(late){el.textContent=P('unsaved');return;}
+  const t=API?savedAt:Date.now();
+  el.textContent=t?P('updated')+' '+new Date(t).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'';
+}
+
+function start(){
+  const local=readLocal();
+  if(!API){
+    if(local)S=local.s;
+    setup=freshSetup(S.who);
+    render();return;
+  }
+  if(!CODE){gate('noLink');return;}
+  if(local){
+    S=local.s;base=local.b;rev=local.rev;dirty=local.dirty;savedAt=local.at;
+    if(dirty)since=Date.now();
+    setup=freshSetup(S.who);
+    render();
+  }else{
+    gate('loading');
+  }
+  pull(true);
+}
+
+/* ---------------------------------------------------------------
+   TAPS
+--------------------------------------------------------------- */
+const ACT={
+  menu:openMenu,
+  log:openLog,
+  close:closePanel,
+  doLog:doLog,
+  addOther:()=>{if(S.lines.length)openLine(null,'other');else stage('other');},
+  /* Lock the name in: its label and box go away, and the name stays under KATA WARRIOR. */
+  lockWho:()=>{
+    const w=$('suWho');if(!w)return;
+    const v=w.value.trim().slice(0,MAX_NAME);
+    if(!v){w.classList.add('bad');w.focus();return;}
+    setup.who=v;setup.locked=true;
+    S.who=v;commit();
+    renderSetup();paintWho();
+  },
+  /* Tapping the name brings its box back: on the first screen in place, later in the menu. */
+  who:()=>{
+    if(S.lines.length){openMenu();const m=$('mnWho');if(m){try{m.focus({preventScroll:true});}catch(e){}}return;}
+    setup.locked=false;renderSetup();
+    const w=$('suWho');if(w){try{w.focus();}catch(e){}}
+  },
+  rmItem:el=>{setup.items.splice(Number(el.getAttribute('data-i')),1);renderSetup();},
+  line:el=>openLine(el.getAttribute('data-id')),
+  saveLine:el=>saveLine(el.getAttribute('data-id'),el.getAttribute('data-kind')),
+  copyLink:el=>copyLink(el),
+  keepDone:()=>{S.ui.kept=1;keep();render();},     // his choice on this device; nothing to send
+  begin:()=>{
+    const w=$('suWho'),who=String(w?w.value:setup.who).trim().slice(0,MAX_NAME);
+    if(!setup.items.length){nudge();return;}
+    for(let i=0;i<setup.items.length;i++){
+      const it=setup.items[i],t=Number(it.target);
+      if(!String(it.name).trim()){const el=$('itn'+i);if(el){el.classList.add('bad');el.focus();}return;}
+      if(!Number.isInteger(t)||t<1||t>MAX_TARGET){const el=$('itt'+i);if(el){el.classList.add('bad');el.focus();}return;}
+    }
+    S.lines=setup.items.map(it=>({id:uid(),name:String(it.name).trim().slice(0,MAX_NAME),target:Number(it.target),kind:kindOf(it.kind)}));
+    S.who=who;S.log=[];S.ui={};commit();
+    setup=freshSetup(who);
+    render();window.scrollTo(0,0);
+  },
+  undo:el=>{
+    const id=el.getAttribute('data-id');
+    S.log=S.log.filter(e=>e.id!==id);commit();hideToast();render();
+  },
+  rmEntry:el=>{
+    const id=el.getAttribute('data-id'),line=el.getAttribute('data-line');
+    S.log=S.log.filter(e=>e.id!==id);commit();render();
+    const top=panel.scrollTop;openLine(line);panel.scrollTop=top;
+  },
+  delLine:el=>{
+    if(!armed(el))return;
+    const id=el.getAttribute('data-id');
+    S.lines=S.lines.filter(l=>l.id!==id);S.log=S.log.filter(e=>e.l!==id);
+    commit();closePanel();
+    if(!S.lines.length)setup=freshSetup(S.who);
+    render();
+  },
+  startOver:el=>{
+    if(!armed(el))return;
+    const who=S.who;                       // starting over clears the count, not who he is
+    S=blank();S.who=who;commit();
+    setup=freshSetup(who);
+    hideToast();closePanel();render();window.scrollTo(0,0);
+  },
+  /* The line at the foot: tap it to try the backend again now. */
+  sync:()=>{if(!API||gated)return;fails=0;if(dirty)push();else pull(true);},
+  /* The one line on a screen that could not open: tap it to try again. */
+  retry:()=>{if(gated==='cantLoad'||gated==='badLink'){fails=0;gate('loading');pull(true);}}
+};
+
+document.addEventListener('click',ev=>{
+  const el=ev.target.closest('[data-act]');
+  if(!el)return;
+  const fn=ACT[el.getAttribute('data-act')];
+  if(fn){ev.preventDefault();fn(el);}
+});
+document.addEventListener('keydown',ev=>{
+  if(ev.key==='Escape'){closePanel();return;}
+  if(ev.key!=='Enter')return;
+  const t=ev.target,id=t&&t.id;
+  if(id==='lgReps'){ev.preventDefault();doLog();}
+  else if(id==='suWho'){ev.preventDefault();if(t.value.trim())ACT.lockWho();else t.blur();}
+  else if(id==='mnWho'){ev.preventDefault();t.blur();}
+  else if(t&&t.classList&&t.classList.contains('itn')){ev.preventDefault();const n=$('itt'+t.getAttribute('data-i'));if(n){n.focus();n.select();}}
+  else if(t&&t.classList&&t.classList.contains('itt')){ev.preventDefault();t.blur();}
+  else if(id==='lnName'||id==='lnTarget'){ev.preventDefault();const b=pin.querySelector('[data-act="saveLine"]');if(b)saveLine(b.getAttribute('data-id'),b.getAttribute('data-kind'));}
+});
+/* Leaving a number box: a good number becomes the one it holds, anything else is dropped. Either way it empties. */
+document.addEventListener('focusout',ev=>{
+  const t=ev.target;
+  if(!t||!t.classList||!t.classList.contains('hold'))return;
+  const n=Number(t.value),max=Number(t.getAttribute('data-max'))||MAX_TARGET;
+  if(t.value!==''&&Number.isInteger(n)&&n>=1&&n<=max){t.setAttribute('data-val',String(n));t.placeholder=String(n);}
+  t.value='';
+  if(t.getAttribute('data-f')==='target'){
+    const it=setup.items[Number(t.getAttribute('data-i'))];
+    if(it){it.target=t.getAttribute('data-val');paintTotal();}
+  }
+});
+document.addEventListener('focusout',()=>{                 // he has stopped typing: a redraw that was held back can go ahead
+  if(wantRender)setTimeout(()=>{if(wantRender)refresh();},0);
+});
+document.addEventListener('input',ev=>{
+  const t=ev.target,id=t&&t.id;
+  if(t&&t.classList&&t.classList.contains('num')){
+    const v=digits(t.value,Number(t.getAttribute('maxlength'))||5);
+    if(v!==t.value)t.value=v;
+  }
+  if(id==='suWho'){setup.who=t.value;t.classList.remove('bad');paintWho();}
+  else if(id==='mnWho'){S.who=t.value.trim().slice(0,MAX_NAME);commit();paintWho();}
+  else if(t&&t.getAttribute&&t.getAttribute('data-f')){
+    const it=setup.items[Number(t.getAttribute('data-i'))];
+    if(!it)return;
+    if(t.getAttribute('data-f')==='target'){
+      const n=Number(t.value);
+      it.target=(t.value!==''&&n>=1)?String(n):t.getAttribute('data-val');   // the total follows as he types
+    }else{
+      it.name=t.value;
+    }
+    t.classList.remove('bad');
+    paintTotal();
+  }
+});
+function paintTotal(){const sum=$('suTotal');if(sum)sum.innerHTML=T('of')+' '+fmt(setupTotal());}
+document.addEventListener('change',ev=>{
+  const t=ev.target;
+  if(!t)return;
+  if(t.id==='lgForm'){
+    const d=derive(S),l=d.lines.find(x=>x.id===t.value),n=$('lgNow');
+    if(n)n.innerHTML=nowLine(d,l);
+  }else if(t.getAttribute&&t.getAttribute('data-add')){
+    const kind=t.getAttribute('data-add'),value=t.value;
+    t.value='';                                           // the button goes back to reading "Add kata"
+    if(value)addPicked(kind,value);
+  }
+});
+
+/* ---------------------------------------------------------------
+   START
+--------------------------------------------------------------- */
+$('brand').textContent=P('brand');
+$('logBtn').innerHTML=T('logReps');
+if(API){
+  const wake=()=>{
+    if(gated==='cantLoad'){fails=0;gate('loading');pull(true);}
+    else if(gated)return;
+    else if(dirty)push();
+    else pull();
+  };
+  window.addEventListener('online',()=>{fails=0;wake();});
+  window.addEventListener('pageshow',ev=>{if(ev.persisted)wake();});
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='hidden'){if(dirty&&!busy&&!gated)push(true);}
+    else wake();
+  });
+}
+start();
+paintStamp();
+
+})();
+</script>
