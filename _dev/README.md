@@ -153,8 +153,9 @@ when phone and Sheet are folded together. The check went to the site in pull req
 
 ## The privacy page
 
-`privacy.html` at the top of the repo is the file to edit. There is no build and no script on it. It is pull
-request #6, opened 5 Oct 2026 and waiting for Kevin's word. Two links lead to it: the foot of `index.html`, and the tracker's door (the `privacy`
+`privacy.html` at the top of the repo is the file to edit. There is no build and no script on it. It went to the
+site in pull request #6, merged 5 Oct 2026 at 6:01 PM Pacific on Kevin's word. A minute later the three live
+pages were byte for byte the tested files, and 17 checks on the live site passed. Two links lead to it: the foot of `index.html`, and the tracker's door (the `privacy`
 line of the `COPY` block; the link opens in a new tab, so what a man has typed at the door stays).
 
 Whose words. Three lines are Kevin's own: "To keep your challenge tracker live.", the line on other emails, and
