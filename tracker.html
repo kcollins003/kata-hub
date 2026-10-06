@@ -135,6 +135,8 @@
   .msg.err{border-color:var(--blood);color:var(--err)}
   .msg.ok{border-color:var(--green);color:var(--ok)}
   .fine{margin:18px auto 0;max-width:340px;text-align:center;font-size:12px;line-height:1.6;color:var(--soft)}
+  .fine.pv{margin-top:0}
+  .fine.pv a{display:inline-block;padding:12px 14px;color:var(--soft);text-decoration:underline;text-underline-offset:3px}
 
   /* the name box and the button that locks it in */
   .whorow{display:flex;gap:8px}
@@ -324,6 +326,7 @@ const COPY = {
   email:'Email',                            // over the email box at the door
   join:'START',                             // the button at the door
   joinNote:'Your link is sent to this email. Kata Warrior may email you.',   // under the button: what giving his email means
+  privacy:'Privacy',                        // the link under that, to the privacy page. The word "privacy" has to stay in it.
   sent:'Check your email',                  // his link has gone to his inbox; it is shown nowhere else
   badEmail:'Check the email address'        // what he typed is not an email address
 };
@@ -1012,7 +1015,8 @@ function door(note){
     '<input type="email" id="jnEmail" name="email" inputmode="email" autocomplete="email" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" maxlength="'+MAX_EMAIL+'" aria-describedby="jnMsg">'+
     '<div class="msg" id="jnMsg" role="alert"></div>'+        // straight under the box, so the keyboard never covers it
     '<button type="button" class="go" data-act="join" id="jnGo">'+T('join')+'</button>'+
-    '<p class="fine">'+T('joinNote')+'</p>';
+    '<p class="fine">'+T('joinNote')+'</p>'+
+    '<p class="fine pv"><a href="privacy.html" target="_blank" rel="noopener">'+T('privacy')+'</a></p>';   // opens beside the door, so what he has typed stays
 }
 
 function join(){
